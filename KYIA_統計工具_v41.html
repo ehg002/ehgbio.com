@@ -1,0 +1,2309 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>會員訂單整合統計 · KYIA</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-plugin-datalabels/2.2.0/chartjs-plugin-datalabels.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700;900&family=JetBrains+Mono:wght@400;600&display=swap');
+
+/* ════════════════════════════════════════
+   TOKENS
+════════════════════════════════════════ */
+:root {
+  --bg:      #0c1118;
+  --surface: #111820;
+  --card:    #161f2c;
+  --border:  #1e2d3d;
+  --accent:  #3be8b0;
+  --blue:    #5bc8ff;
+  --amber:   #ffb547;
+  --rose:    #ff5f7e;
+  --violet:  #a78bfa;
+  --text:    #dce8f5;
+  --muted:   #4a6278;
+  --mono:    'JetBrains Mono', monospace;
+  --sans:    'Noto Sans TC', sans-serif;
+  --r-sm:    8px;
+  --r-md:    12px;
+  --r-lg:    16px;
+}
+
+html.light {
+  --bg:      #f0f4f8;
+  --surface: #ffffff;
+  --card:    #e8eef5;
+  --border:  #c8d6e5;
+  --accent:  #0da672;
+  --blue:    #1a7fc1;
+  --amber:   #c47a00;
+  --rose:    #d63355;
+  --violet:  #7c3aed;
+  --text:    #1a2b3c;
+  --muted:   #7a94aa;
+}
+
+/* ════════════════════════════════════════
+   RESET & BASE
+════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--sans);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  line-height: 1.5;
+}
+
+/* ════════════════════════════════════════
+   SCROLLBAR
+════════════════════════════════════════ */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ════════════════════════════════════════
+   ANIMATION
+════════════════════════════════════════ */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeUp 0.32s ease both; }
+
+/* ════════════════════════════════════════
+   LAYOUT
+════════════════════════════════════════ */
+.header {
+  position: sticky; top: 0; z-index: 50;
+  height: 54px;
+  padding: 0 28px;
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+}
+
+.logo {
+  font-family: var(--mono);
+  font-size: 13px; font-weight: 600;
+  color: var(--accent); letter-spacing: 3px;
+}
+.logo em { color: var(--muted); font-style: normal; font-weight: 400; }
+
+.header-actions { display: flex; gap: 8px; align-items: center; }
+
+.main {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 24px 28px;
+  display: flex; flex-direction: column; gap: 20px;
+}
+
+/* ════════════════════════════════════════
+   SECTION DIVIDER
+════════════════════════════════════════ */
+.stitle {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 2.5px; text-transform: uppercase;
+  color: var(--muted);
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 14px;
+}
+.stitle::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* ════════════════════════════════════════
+   BUTTONS
+════════════════════════════════════════ */
+.btn {
+  padding: 7px 16px;
+  border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--card); color: var(--muted);
+  font-family: var(--sans); font-size: 12px;
+  cursor: pointer; transition: all 0.18s;
+}
+.btn:hover   { border-color: var(--accent); color: var(--accent); }
+.btn.primary { background: var(--accent); color: #0c1118; border-color: var(--accent); font-weight: 700; }
+.btn.primary:hover { opacity: 0.85; }
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.theme-btn {
+  padding: 7px 14px;
+  border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--card); color: var(--text);
+  font-family: var(--sans); font-size: 13px;
+  cursor: pointer; transition: border-color 0.2s;
+  display: flex; align-items: center; gap: 6px;
+  user-select: none;
+}
+.theme-btn:hover { border-color: var(--accent); }
+
+/* ════════════════════════════════════════
+   PANEL (shared card base)
+════════════════════════════════════════ */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 24px;
+}
+
+/* ════════════════════════════════════════
+   NOTICE BANNER
+════════════════════════════════════════ */
+.notice {
+  margin-top: 12px; padding: 10px 14px;
+  background: rgba(255,181,71,0.08);
+  border: 1px solid rgba(255,181,71,0.2);
+  border-radius: var(--r-sm);
+  font-size: 12px; line-height: 1.7;
+  display: flex; align-items: flex-start; gap: 8px;
+}
+
+/* ════════════════════════════════════════
+   UPLOAD / DROP AREA
+════════════════════════════════════════ */
+.drop-area {
+  border: 2px dashed var(--border);
+  border-radius: var(--r-md);
+  padding: 40px 24px;
+  text-align: center;
+  cursor: pointer;
+  background: var(--card);
+  transition: border-color 0.2s, background 0.2s;
+}
+.drop-area:hover,
+.drop-area.over {
+  border-color: var(--accent);
+  background: rgba(59,232,176,0.04);
+}
+.drop-icon  { font-size: 40px; margin-bottom: 10px; }
+.drop-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.drop-hint  { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+.chips { display: flex; gap: 6px; justify-content: center; margin-top: 10px; }
+.chip {
+  font-family: var(--mono); font-size: 10px;
+  padding: 2px 8px; border-radius: 4px;
+  border: 1px solid var(--border); color: var(--muted);
+}
+
+/* File info bar */
+.file-info {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px 16px; margin-bottom: 14px;
+  background: rgba(59,232,176,0.07);
+  border: 1px solid rgba(59,232,176,0.18);
+  border-radius: var(--r-sm);
+}
+.fi-name { font-size: 13px; font-weight: 600; }
+.fi-meta { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+.fi-reset { margin-left: auto; font-size: 11px; color: var(--muted); cursor: pointer; }
+.fi-reset:hover { color: var(--rose); }
+
+/* Column mapping grid */
+.map-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px; margin-top: 16px;
+}
+.map-row { display: flex; flex-direction: column; gap: 4px; }
+.map-lbl { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+.map-sel {
+  padding: 7px 10px;
+  border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--card); color: var(--text);
+  font-family: var(--sans); font-size: 12px;
+  outline: none; cursor: pointer;
+}
+.map-sel:focus { border-color: var(--accent); }
+
+/* ════════════════════════════════════════
+   GENDER SECTION
+════════════════════════════════════════ */
+.gender-panel {
+  display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 20px 24px;
+}
+.gender-icon { font-size: 28px; flex-shrink: 0; margin-top: 3px; }
+.gender-body { flex: 1; min-width: 200px; }
+.gender-body h3 { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.gender-body p  { font-size: 11px; color: var(--muted); line-height: 1.7; }
+
+/* Gender column mapping box */
+.g-map-box {
+  display: none;
+  margin-top: 14px; padding: 14px 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+.g-map-box.open { display: block; }
+
+.g-map-title {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--amber);
+  margin-bottom: 10px;
+}
+.g-header-toggle {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--muted);
+  margin-bottom: 10px;
+  cursor: pointer; user-select: none;
+}
+.g-header-toggle input { accent-color: var(--accent); cursor: pointer; }
+
+.g-col-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px; margin-bottom: 12px;
+}
+.g-col-row { display: flex; flex-direction: column; gap: 4px; }
+.g-col-lbl { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+.g-col-sel {
+  padding: 6px 9px;
+  border-radius: 7px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text);
+  font-family: var(--sans); font-size: 12px;
+  outline: none; cursor: pointer;
+}
+.g-col-sel:focus { border-color: var(--accent); }
+.g-col-sel.req   { border-color: rgba(255,181,71,0.4); }
+.g-col-preview {
+  font-size: 10px; font-family: var(--mono);
+  color: var(--muted); line-height: 1.4;
+  margin-top: 2px;
+}
+
+/* Gender stats bar */
+.g-stats {
+  display: none;
+  margin-top: 12px; padding: 10px 14px;
+  background: rgba(59,232,176,0.06);
+  border: 1px solid rgba(59,232,176,0.15);
+  border-radius: var(--r-sm);
+  align-items: center; gap: 20px; flex-wrap: wrap;
+}
+.g-stats.open { display: flex; }
+
+.g-stat { display: flex; flex-direction: column; gap: 2px; }
+.g-stat-val { font-family: var(--mono); font-size: 16px; font-weight: 600; }
+.g-stat-lbl { font-size: 10px; color: var(--muted); }
+.g-stat-val.f  { color: var(--rose); }
+.g-stat-val.m  { color: var(--blue); }
+.g-stat-val.ok { color: var(--accent); }
+
+.g-method-tag {
+  margin-left: auto;
+  font-size: 10px; font-family: var(--mono);
+  padding: 2px 8px; border-radius: 5px;
+  background: rgba(255,181,71,0.1); color: var(--amber);
+  border: 1px solid rgba(255,181,71,0.2);
+}
+
+/* Unmatched list */
+.g-unmatched {
+  display: none;
+  margin-top: 8px; padding: 8px 12px;
+  background: rgba(255,95,126,0.05);
+  border: 1px solid rgba(255,95,126,0.15);
+  border-radius: var(--r-sm);
+  font-size: 11px; color: var(--muted); line-height: 1.7;
+}
+.g-unmatched.open { display: block; }
+
+/* Gender status badge */
+.g-status-badge {
+  display: none;
+  font-size: 11px; font-family: var(--mono);
+  padding: 4px 10px; border-radius: 6px;
+  background: rgba(59,232,176,0.1); color: var(--accent);
+  border: 1px solid rgba(59,232,176,0.2);
+}
+.g-reset-link { font-size: 11px; color: var(--muted); cursor: pointer; }
+.g-reset-link:hover { color: var(--rose); }
+.gender-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; align-self: flex-start; margin-top: 2px; }
+
+/* ════════════════════════════════════════
+   KPI GRID
+════════════════════════════════════════ */
+.kpi-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+
+.kpi {
+  position: relative; overflow: hidden;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+}
+.kpi::before {
+  content: ''; position: absolute;
+  top: 0; left: 0; right: 0; height: 2px;
+  background: var(--kc, var(--accent));
+}
+.kpi-lbl { font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+.kpi-val { font-family: var(--mono); font-size: 22px; font-weight: 600; color: var(--kc, var(--accent)); }
+.kpi-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+/* ════════════════════════════════════════
+   CHARTS
+════════════════════════════════════════ */
+.charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+@media (max-width: 768px) {
+  .charts-grid { grid-template-columns: 1fr; }
+  .kpi-grid    { grid-template-columns: repeat(2, 1fr); }
+  .kpi:last-child { grid-column: 1 / -1; }
+  .main { padding: 16px; gap: 16px; }
+}
+
+.chart-card {
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+}
+.chart-card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 4px;
+}
+.chart-title { font-size: 13px; font-weight: 700; }
+.chart-sub   { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+.chart-wrap  { position: relative; height: 240px; }
+
+/* ── 圓餅圖容器（正面顯示，無扭曲） */
+.pie-3d-wrap {
+  position: relative;
+  height: 220px;
+}
+.pie-3d-wrap canvas {
+  filter: drop-shadow(0 4px 12px rgba(0,0,0,0.35));
+}
+
+/* ── 自訂圖例 ── */
+.pie-legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 12px;
+  margin-top: 12px;
+  padding: 0 4px;
+}
+.pie-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text);
+  line-height: 1.4;
+  min-width: 0;
+}
+.pie-legend-dot {
+  width: 10px; height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.pie-legend-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  flex: 1;
+}
+.pie-legend-pct {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  flex-shrink: 0;
+  margin-left: 2px;
+}
+
+.pie-sel {
+  padding: 6px 10px;
+  border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--card); color: var(--accent);
+  font-family: var(--sans); font-size: 11px;
+  outline: none; cursor: pointer; max-width: 220px;
+}
+.pie-sel:focus { border-color: var(--accent); }
+.pie-sel option { background: var(--card); color: var(--text); }
+
+/* ════════════════════════════════════════
+   MEMBER TABLE
+════════════════════════════════════════ */
+.table-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+
+.table-toolbar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 14px 18px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+}
+
+.search-box {
+  flex: 1; min-width: 200px;
+  padding: 7px 12px;
+  border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text);
+  font-family: var(--sans); font-size: 12px;
+  outline: none;
+}
+.search-box:focus { border-color: var(--accent); }
+.search-box::placeholder { color: var(--muted); }
+
+.sort-lbl { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.sort-sel {
+  padding: 7px 10px;
+  border-radius: var(--r-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text);
+  font-family: var(--sans); font-size: 12px;
+  outline: none; cursor: pointer;
+}
+
+.record-count { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+.t-scroll { overflow-x: auto; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+
+thead th {
+  padding: 10px 14px;
+  font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--muted); text-align: left; white-space: nowrap;
+  background: rgba(22,31,44,0.8);
+  border-bottom: 1px solid var(--border);
+}
+
+tbody td {
+  padding: 11px 14px;
+  border-bottom: 1px solid rgba(30,45,61,0.5);
+  vertical-align: top;
+}
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover td { background: rgba(59,232,176,0.025); }
+
+/* Table cell components */
+.uid-badge {
+  display: inline-block;
+  font-family: var(--mono); font-size: 11px;
+  padding: 2px 7px; border-radius: 5px;
+  background: rgba(91,200,255,0.1); color: var(--blue);
+  border: 1px solid rgba(91,200,255,0.2);
+}
+
+.gender-badge {
+  display: inline-block;
+  font-size: 10px; font-family: var(--mono);
+  padding: 2px 7px; border-radius: 4px;
+  border: 1px solid var(--border);
+}
+.gender-badge.F { background: rgba(255,95,126,0.1); color: var(--rose); border-color: rgba(255,95,126,0.25); }
+.gender-badge.M { background: rgba(91,200,255,0.1); color: var(--blue); border-color: rgba(91,200,255,0.25); }
+
+.match-tag {
+  font-size: 9px; margin-left: 3px;
+  vertical-align: middle;
+}
+.match-uid  { color: var(--accent); }
+.match-name { color: var(--amber); }
+
+.region-badge {
+  display: inline-block;
+  font-size: 10px; font-family: var(--mono);
+  padding: 2px 7px; border-radius: 4px;
+  border: 1px solid var(--border); color: var(--muted);
+}
+.region-北部 { background: rgba(59,232,176,0.08);  color: var(--accent); border-color: rgba(59,232,176,0.25); }
+.region-中部 { background: rgba(91,200,255,0.08);  color: var(--blue);   border-color: rgba(91,200,255,0.25); }
+.region-南部 { background: rgba(255,181,71,0.08);  color: var(--amber);  border-color: rgba(255,181,71,0.25); }
+.region-東部 { background: rgba(167,139,250,0.08); color: var(--violet); border-color: rgba(167,139,250,0.25); }
+.region-離島 { background: rgba(255,95,126,0.08);  color: var(--rose);   border-color: rgba(255,95,126,0.25); }
+
+.rank-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 6px;
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+}
+.rank-1 { background: rgba(255,181,71,0.2); color: var(--amber); }
+.rank-2 { background: rgba(220,220,220,0.1); color: #aaa; }
+.rank-3 { background: rgba(200,130,80,0.15); color: #c8824a; }
+.rank-n { background: var(--card); color: var(--muted); }
+
+.amount-cell { font-family: var(--mono); font-size: 14px; font-weight: 600; color: var(--accent); }
+.avg-cell    { font-family: var(--mono); font-size: 12px; color: var(--amber); }
+
+.orders-list   { display: flex; flex-direction: column; gap: 3px; }
+.products-list { display: flex; flex-direction: column; gap: 2px; }
+
+.order-tag {
+  font-family: var(--mono); font-size: 10px;
+  padding: 2px 6px; border-radius: 4px;
+  background: var(--card); border: 1px solid var(--border);
+  color: var(--muted); white-space: nowrap;
+}
+.product-tag {
+  font-size: 11px; line-height: 1.5;
+  padding: 2px 6px; border-radius: 4px;
+  background: rgba(255,255,255,0.03); color: var(--text);
+}
+
+/* ════════════════════════════════════════
+   PAGINATION
+════════════════════════════════════════ */
+.pagination {
+  display: flex; align-items: center; justify-content: center;
+  gap: 6px; padding: 14px;
+  border-top: 1px solid var(--border);
+}
+.pg-btn {
+  padding: 5px 12px;
+  border-radius: 7px; border: 1px solid var(--border);
+  background: var(--card); color: var(--muted);
+  font-size: 12px; cursor: pointer; transition: all 0.15s;
+}
+.pg-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.pg-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.pg-info { font-size: 11px; font-family: var(--mono); color: var(--muted); margin: 0 8px; }
+
+/* ════════════════════════════════════════
+   CSV EXPORT MODAL
+════════════════════════════════════════ */
+.csv-modal-bg {
+  display: none;
+  position: fixed; inset: 0; z-index: 200;
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(4px);
+  align-items: center; justify-content: center;
+}
+.csv-modal-bg.open { display: flex; }
+
+.csv-modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  width: min(720px, 94vw);
+  max-height: 80vh;
+  display: flex; flex-direction: column; gap: 14px;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.5);
+}
+.csv-modal-header {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.csv-modal-title { font-size: 14px; font-weight: 700; }
+.csv-modal-close {
+  font-size: 20px; cursor: pointer; color: var(--muted); line-height: 1;
+  padding: 2px 6px; border-radius: 6px;
+}
+.csv-modal-close:hover { color: var(--rose); background: rgba(255,95,126,0.1); }
+
+.csv-modal-hint {
+  font-size: 12px; color: var(--muted); line-height: 1.6;
+  padding: 8px 12px;
+  background: rgba(255,181,71,0.08);
+  border: 1px solid rgba(255,181,71,0.2);
+  border-radius: 8px;
+}
+.csv-textarea {
+  flex: 1;
+  width: 100%; min-height: 220px; max-height: 40vh;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--text);
+  font-family: var(--mono); font-size: 11px; line-height: 1.5;
+  resize: vertical; outline: none;
+  overflow-y: auto;
+}
+.csv-modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+.copy-success {
+  font-size: 12px; color: var(--accent);
+  display: none; align-items: center; gap: 4px;
+  margin-right: auto;
+}
+.copy-success.show { display: flex; }
+html.light .drop-area       { background: #f8fafc; }
+html.light .map-sel         { background: #f8fafc; }
+html.light .search-box      { background: #f8fafc; }
+html.light .sort-sel        { background: #f8fafc; }
+html.light .g-col-sel       { background: #ffffff; }
+html.light .g-map-box       { background: #f8fafc; }
+html.light .order-tag       { background: #dde8f2; }
+html.light .product-tag     { background: rgba(0,0,0,0.04); }
+html.light .uid-badge       { background: rgba(26,127,193,0.1); color: var(--blue); border-color: rgba(26,127,193,0.25); }
+html.light .rank-n          { background: #dde8f2; }
+html.light thead th         { background: rgba(232,238,245,0.9); }
+html.light tbody tr:hover td { background: rgba(13,166,114,0.06); }
+html.light .g-stats         { background: rgba(13,166,114,0.05); border-color: rgba(13,166,114,0.2); }
+html.light .g-unmatched     { background: rgba(214,51,85,0.04); border-color: rgba(214,51,85,0.15); }
+html.light ::-webkit-scrollbar-thumb { background: #c8d6e5; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════
+     HEADER
+══════════════════════════════════════ -->
+<header class="header">
+  <div class="logo">KYIA <em>· 會員訂單整合統計</em></div>
+  <div class="header-actions">
+    <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀️ 淺色</button>
+    <button class="btn" onclick="loadDemo()">🤖 示範數據</button>
+  </div>
+</header>
+
+<div class="main">
+
+<!-- ══════════════════════════════════════
+     ① 銷售明細 CSV 上傳
+══════════════════════════════════════ -->
+<section class="panel fade-in">
+  <div class="stitle">① 上傳銷售明細 CSV</div>
+
+  <!-- 已選檔案資訊列（上傳後顯示） -->
+  <div id="fileInfoBar" style="display:none">
+    <div class="file-info">
+      <span style="font-size:22px">✅</span>
+      <div>
+        <div class="fi-name" id="fiName">—</div>
+        <div class="fi-meta" id="fiMeta">—</div>
+      </div>
+      <span class="fi-reset" onclick="resetAll()">✕ 重新上傳</span>
+    </div>
+  </div>
+
+  <!-- 拖放區（上傳後隱藏） -->
+  <div id="dropWrap">
+    <div class="drop-area" id="dropArea"
+      onclick="document.getElementById('csvInput').click()"
+      ondragover="onDragOver(event)"
+      ondragleave="onDragLeave(event)"
+      ondrop="onDrop(event)">
+      <div class="drop-icon">📂</div>
+      <div class="drop-title">拖曳檔案至此，或點擊選擇</div>
+      <div class="drop-hint">
+        支援寬雲後台「銷售明細表」匯出格式<br>
+        同一訂單多品項的多列資料將自動合併
+      </div>
+      <div class="chips">
+        <span class="chip">.XLSX</span>
+        <span class="chip">.XLS</span>
+        <span class="chip">.CSV</span>
+        <span class="chip">UTF-8</span>
+        <span class="chip">BIG5</span>
+      </div>
+      <input type="file" id="csvInput" style="display:none"
+        accept=".csv,.tsv,.xlsx,.xls" onchange="handleFile(event)">
+    </div>
+
+    <div class="notice">
+      <span>💡</span>
+      <span>
+        <b>欄位識別說明：</b>工具會自動偵測欄位名稱。若偵測失敗，可在下方手動對應。
+        必填欄位：<b>單號</b>、<b>訂單總額 或 實付金額</b>、<b>訂購人（含會員代號）</b>。
+        <b>地區</b>會依地址自動推算北／中／南／東／離島。
+      </span>
+    </div>
+  </div>
+
+  <!-- 欄位對應設定（上傳後顯示） -->
+  <div id="mappingSection" style="display:none; margin-top:18px">
+    <div class="stitle" style="margin-bottom:10px">② 欄位對應設定</div>
+    <div class="map-grid" id="mapGrid"></div>
+    <button class="btn primary" style="margin-top:14px" onclick="processData()">⚡ 開始整合分析</button>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     性別對應表（選填）
+══════════════════════════════════════ -->
+<section class="gender-panel fade-in">
+  <div class="gender-icon">⚥</div>
+
+  <div class="gender-body">
+    <h3>性別對應表 <span style="color:var(--muted);font-weight:400;font-size:11px">（選填）</span></h3>
+    <p>
+      上傳含有 <b>會員代號</b>、<b>姓名</b>（選填）、<b>性別</b> 欄位的 CSV，啟用性別分析圓餅圖。<br>
+      支援<b>有表頭</b>與<b>無表頭</b>格式，上傳後可手動指定欄位。<br>
+      比對順序：<b>① 會員代號</b> → <b>② 姓名</b>（備援） · 性別值：<b>F / 女</b> 或 <b>M / 男</b>
+    </p>
+
+    <!-- 欄位對應設定 -->
+    <div class="g-map-box" id="gMapBox">
+      <div class="g-map-title">⚙ 指定性別欄位</div>
+
+      <label class="g-header-toggle">
+        <input type="checkbox" id="gHasHeader" checked onchange="onGenderHeaderToggle()">
+        第一列是表頭（欄位名稱）
+      </label>
+
+      <!-- 自動偵測結果提示 -->
+      <div id="gAutoInfo" style="
+        font-size:11px; color:var(--muted); font-family:var(--mono);
+        margin-bottom:10px; padding:6px 10px;
+        background:rgba(59,232,176,0.05); border:1px solid rgba(59,232,176,0.12);
+        border-radius:6px; line-height:1.8;
+      "></div>
+
+      <!-- 只保留性別欄選擇 -->
+      <div style="display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; margin-bottom:12px">
+        <div class="g-col-row" style="flex:1; min-width:160px">
+          <label class="g-col-lbl">性別欄 * (F/M/女/男)</label>
+          <select class="g-col-sel req" id="gColGender" onchange="updateGColPreview()">
+            <option value="">— 略過 —</option>
+          </select>
+          <div class="g-col-preview" id="gPrevGender">—</div>
+        </div>
+      </div>
+
+      <button class="btn primary" style="font-size:11px;padding:6px 16px" onclick="applyGenderMapping()">
+        ✓ 套用性別對應
+      </button>
+    </div>
+
+    <!-- 比對統計列 -->
+    <div class="g-stats" id="gStats">
+      <div class="g-stat"><span class="g-stat-val f" id="gs-f">—</span><span class="g-stat-lbl">女性</span></div>
+      <div class="g-stat"><span class="g-stat-val m" id="gs-m">—</span><span class="g-stat-lbl">男性</span></div>
+      <div class="g-stat"><span class="g-stat-val ok" id="gs-hit">—</span><span class="g-stat-lbl">已比對</span></div>
+      <div class="g-stat"><span class="g-stat-val" style="color:var(--muted)" id="gs-miss">—</span><span class="g-stat-lbl">未比對</span></div>
+      <span class="g-method-tag" id="gs-method">—</span>
+    </div>
+
+    <!-- 未比對名單 -->
+    <div class="g-unmatched" id="gUnmatched">
+      <span style="color:var(--rose);font-weight:600">未比對到性別的會員：</span>
+      <span id="gUnmatchedList">—</span><br>
+      <span style="font-size:10px">以上會員在消費表中存在，但性別對應表找不到對應的代號或姓名。</span>
+    </div>
+  </div>
+
+  <div class="gender-actions">
+    <span class="g-status-badge" id="gStatusBadge">—</span>
+    <span class="g-reset-link" id="gResetLink" onclick="resetGender()" style="display:none">✕ 清除</span>
+    <button class="btn" onclick="document.getElementById('genderInput').click()">📋 上傳性別表</button>
+    <input type="file" id="genderInput" style="display:none" accept=".csv,.xlsx,.xls" onchange="handleGenderFile(event)">
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     KPI 概覽
+══════════════════════════════════════ -->
+<section id="kpiSection" style="display:none" class="fade-in">
+  <div class="stitle">整合統計概覽</div>
+  <div class="kpi-grid">
+    <div class="kpi" style="--kc:var(--accent)">
+      <div class="kpi-lbl">總 GMV</div>
+      <div class="kpi-val" id="k-gmv">—</div>
+      <div class="kpi-sub">所有訂單加總</div>
+    </div>
+    <div class="kpi" style="--kc:var(--blue)">
+      <div class="kpi-lbl">不重複會員</div>
+      <div class="kpi-val" id="k-members">—</div>
+      <div class="kpi-sub">依 UID 去重</div>
+    </div>
+    <div class="kpi" style="--kc:var(--amber)">
+      <div class="kpi-lbl">不重複訂單</div>
+      <div class="kpi-val" id="k-orders">—</div>
+      <div class="kpi-sub">依單號去重</div>
+    </div>
+    <div class="kpi" style="--kc:var(--rose)">
+      <div class="kpi-lbl">平均客單價</div>
+      <div class="kpi-val" id="k-avg">—</div>
+      <div class="kpi-sub">GMV ÷ 訂單數</div>
+    </div>
+    <div class="kpi" style="--kc:var(--violet)">
+      <div class="kpi-lbl">平均每人消費</div>
+      <div class="kpi-val" id="k-perMember">—</div>
+      <div class="kpi-sub">GMV ÷ 會員數</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     圖表
+══════════════════════════════════════ -->
+<section id="chartsSection" style="display:none" class="fade-in">
+  <div class="charts-grid">
+
+    <!-- 長條圖 Top 10 -->
+    <div class="chart-card">
+      <div class="chart-title">消費金額 Top 10 會員</div>
+      <div class="chart-sub">依總消費金額排行</div>
+      <div class="chart-wrap"><canvas id="topChart"></canvas></div>
+    </div>
+
+    <!-- 圓餅圖 -->
+    <div class="chart-card">
+      <div class="chart-card-header">
+        <div class="chart-title">📊 圓餅圖分析</div>
+        <select id="pieSel" class="pie-sel" onchange="renderPieChart()">
+          <option value="region">地區分佈（北中南東離島）</option>
+          <option value="gender">性別佔比（F女 / M男）</option>
+          <option value="payment">付款方式佔比</option>
+          <option value="delivery">運送方式佔比</option>
+          <option value="productAmt">各產品消費佔比</option>
+        </select>
+      </div>
+      <div class="chart-sub" id="pieSub">依收件地址自動分析北中南東離島</div>
+      <div class="pie-3d-wrap"><canvas id="pieChart"></canvas></div>
+      <div class="pie-legend" id="pieLegend"></div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     會員彙總表
+══════════════════════════════════════ -->
+<section id="tableSection" style="display:none" class="fade-in table-panel">
+
+  <div class="table-toolbar">
+    <div class="stitle" style="margin-bottom:0;flex:none">③ 會員消費彙總表</div>
+    <input class="search-box" id="searchBox" type="text"
+      placeholder="🔍 搜尋會員姓名或編號…" oninput="filterTable()">
+    <span class="sort-lbl">排序：</span>
+    <select class="sort-sel" id="sortSel" onchange="renderTable()">
+      <option value="amount-desc">金額 高→低</option>
+      <option value="amount-asc">金額 低→高</option>
+      <option value="orders-desc">訂單數 多→少</option>
+      <option value="name-asc">姓名 A→Z</option>
+    </select>
+    <span class="record-count" id="recordCount"></span>
+    <button class="btn primary" onclick="exportFiltered()"
+      style="margin-left:auto;padding:6px 14px;font-size:11px">⬇ 下載 Excel</button>
+  </div>
+
+  <div class="t-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>排名</th>
+          <th>會員姓名</th>
+          <th>會員代號</th>
+          <th>性別</th>
+          <th>地區</th>
+          <th>聯絡電話</th>
+          <th>行動電話</th>
+          <th>地址</th>
+          <th>訂單數</th>
+          <th>訂單明細</th>
+          <th>消費總額</th>
+          <th>購買品項</th>
+        </tr>
+      </thead>
+      <tbody id="memberTbody"></tbody>
+    </table>
+  </div>
+
+  <div class="pagination" id="pagination"></div>
+</section>
+
+</div><!-- .main -->
+
+<!-- ══════════════════════════════════════
+     CSV 匯出彈窗
+══════════════════════════════════════ -->
+<div class="csv-modal-bg" id="csvModalBg" onclick="if(event.target===this)closeCSVModal()">
+  <div class="csv-modal">
+    <div class="csv-modal-header">
+      <div class="csv-modal-title">📋 匯出 CSV — <span id="csvModalFilename"></span></div>
+      <span class="csv-modal-close" onclick="closeCSVModal()">✕</span>
+    </div>
+    <div class="csv-modal-hint">
+      點擊「全選複製」→ 開啟 Excel 或 Numbers → 貼上（Ctrl+V / ⌘V）→ 另存為 .csv<br>
+      或直接點選「下載」（部分瀏覽器支援直接下載）
+    </div>
+    <textarea class="csv-textarea" id="csvTextarea" readonly></textarea>
+    <div class="csv-modal-actions">
+      <span class="copy-success" id="copySuccess">✅ 已複製到剪貼簿！</span>
+      <button class="btn" onclick="tryCsvDownload()">⬇ 下載</button>
+      <button class="btn primary" onclick="copyCSVText()">複製全部</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     JAVASCRIPT
+══════════════════════════════════════ -->
+<script>
+'use strict';
+
+/* ── STATE ─────────────────────────────────────────────────────────────────── */
+let RAW_ROWS    = [];
+let CSV_HEADERS = [];
+let MEMBER_DATA = [];
+let FILTERED    = [];
+let currentPage = 1;
+const PAGE_SIZE = 20;
+let charts = {};
+
+// 性別
+let GENDER_MAP      = {};   // uid  → 'F'|'M'
+let GENDER_NAME_MAP = {};   // name → 'F'|'M'
+let MEMBER_INFO_MAP = {};   // uid  → { phone1, phone2, address } （從性別表補充）
+let GENDER_RAW_ROWS = [];
+let GENDER_RAW_HDR  = [];
+let GENDER_LOADED   = false;
+
+/* ── FIELD MAPPING CONFIG ───────────────────────────────────────────────────── */
+const FIELD_MAP = {
+  orderNo:    { label: '單號 *必填',                        key: '' },
+  orderTime:  { label: '訂單時間',                          key: '' },
+  amount:     { label: '訂單總額',                          key: '' },
+  paidAmt:    { label: '實付金額 ★',                       key: '' },
+  buyer:      { label: '訂購人／會員代號欄',                key: '' },
+  memberName: { label: '會員姓名（收件人 / 訂購人）',       key: '' },
+  phone1:     { label: '聯絡電話',                                  key: '' },
+  phone2:     { label: '行動電話',                                  key: '' },
+  address:    { label: '地址 🗺（自動推算地區）',           key: '' },
+  product:    { label: '品名',                              key: '' },
+  price:      { label: '單價',                              key: '' },
+  qty:        { label: '數量',                              key: '' },
+  subtotal:   { label: '小計',                              key: '' },
+  payment:    { label: '付款方式',                          key: '' },
+  delivery:   { label: '運送方式',                          key: '' },
+};
+
+const AUTO_HINTS = {
+  orderNo:    { exact: ['單號'],       partial: ['訂單單號','訂單號','order_no','orderno'] },
+  orderTime:  { exact: ['訂單時間'],   partial: ['時間','date','time'] },
+  amount:     { exact: ['訂單總額'],   partial: ['總額','total'] },
+  paidAmt:    { exact: ['實付金額'],   partial: ['實付','付款金額','實際付款','應付金額','paid'] },
+  buyer:      { exact: ['會員代號'],   partial: ['訂購人','購買人','buyer','member'] },
+  memberName: { exact: ['收件人'],     partial: ['姓名','會員姓名','membername','name'] },
+  phone1:     { exact: ['聯絡電話','聯絡電話(手機)','聯絡電話(市話)','電話','聯絡電話(市話/手機)'], partial: ['聯絡','phone','tel','contact'] },
+  phone2:     { exact: ['行動電話','手機電話','行動','mobile'],                                   partial: ['行動','手機','mobile','cellphone'] },
+  address:    { exact: ['地址'],       partial: ['收件地址','address','addr'] },
+  product:    { exact: ['品名'],       partial: ['商品','產品','item','product'] },
+  price:      { exact: ['單價'],       partial: ['售價','price'] },
+  qty:        { exact: ['數量'],       partial: ['qty','quantity'] },
+  subtotal:   { exact: ['小計'],       partial: ['subtotal'] },
+  payment:    { exact: ['付款方式'],   partial: ['payment'] },
+  delivery:   { exact: ['運送方式'],   partial: ['delivery','運送','配送'] },
+};
+
+/* ── CSV UTILITIES ──────────────────────────────────────────────────────────── */
+
+/** 自動偵測 CSV 分隔符號（逗號 / Tab / 分號） */
+function detectDelimiter(text) {
+  // 取前兩行來偵測
+  const sample = text.split(/\r?\n/).slice(0, 2).join('\n');
+  const counts = {
+    ',': (sample.match(/,/g)  || []).length,
+    '\t': (sample.match(/\t/g) || []).length,
+    ';': (sample.match(/;/g)  || []).length,
+  };
+  // 回傳數量最多的那個
+  return Object.entries(counts).sort((a,b) => b[1]-a[1])[0][0];
+}
+
+let CSV_DELIMITER = ','; // 全域分隔符，parseCSV 後設定
+
+function splitCSV(line) {
+  const result = [];
+  let cur = '', inQ = false;
+  const delim = CSV_DELIMITER;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; continue; }
+    if (!inQ && line.slice(i, i + delim.length) === delim) {
+      result.push(cur); cur = '';
+      i += delim.length - 1;
+      continue;
+    }
+    cur += c;
+  }
+  result.push(cur);
+  return result;
+}
+
+function stripBom(text) {
+  return text.charCodeAt(0) === 0xFEFF ? text.slice(1) : text;
+}
+
+/* ── MAIN FILE UPLOAD ─────────────────────────────────────────────────────────── */
+function onDragOver(e)  { e.preventDefault(); document.getElementById('dropArea').classList.add('over'); }
+function onDragLeave()  { document.getElementById('dropArea').classList.remove('over'); }
+function onDrop(e)      { e.preventDefault(); onDragLeave(); const f = e.dataTransfer.files[0]; if (f) handleFile({ target: { files: [f] } }); }
+function handleFile(e)  { const f = e.target.files[0]; if (!f) return; isExcel(f) ? parseExcel(f) : parseCSV(f); }
+
+function isExcel(file) {
+  return /\.(xlsx|xls)$/i.test(file.name) ||
+    file.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' ||
+    file.type === 'application/vnd.ms-excel';
+}
+
+/* ── EXCEL PARSING ───────────────────────────────────────────────────────────── */
+function parseExcel(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const wb    = XLSX.read(ev.target.result, { type: 'array', cellText: true, cellDates: true });
+      const ws    = wb.Sheets[wb.SheetNames[0]];
+      // sheet_to_json with header:1 → array of arrays
+      const aoa   = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+      if (aoa.length < 2) { alert('Excel 內容不足，請確認檔案'); return; }
+
+      // 第一列為表頭
+      CSV_HEADERS = aoa[0].map(h => String(h).trim());
+      RAW_ROWS = aoa.slice(1)
+        .map(row => {
+          const obj = {};
+          CSV_HEADERS.forEach((h, i) => obj[h] = String(row[i] ?? '').trim());
+          return obj;
+        })
+        .filter(r => Object.values(r).some(v => v));
+
+      setFileInfo(file, RAW_ROWS.length, CSV_HEADERS.length, file.size);
+      autoMapColumns();
+      buildMappingUI();
+    } catch(err) {
+      alert('Excel 讀取失敗：' + err.message + '\n請改用另存 CSV 格式後上傳。');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ── CSV PARSING ─────────────────────────────────────────────────────────────── */
+
+function parseCSV(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const buf = ev.target.result;
+    // ✅ 自動偵測編碼
+    let text = tryDecode(buf, 'UTF-8');
+    if (looksGarbled(text)) text = tryDecode(buf, 'Big5');
+    if (looksGarbled(text)) text = tryDecode(buf, 'GB18030');
+    text = stripBom(text);
+
+    // ✅ 自動偵測分隔符號
+    CSV_DELIMITER = detectDelimiter(text);
+
+    const lines = text.split(/\r?\n/).filter(l => l.trim());
+    if (lines.length < 2) { alert('CSV 內容不足，請確認檔案'); return; }
+
+    CSV_HEADERS = splitCSV(lines[0]);
+    RAW_ROWS = lines.slice(1)
+      .map(l => {
+        const cols = splitCSV(l);
+        const obj  = {};
+        CSV_HEADERS.forEach((h, i) => obj[h] = (cols[i] || '').trim());
+        return obj;
+      })
+      .filter(r => Object.values(r).some(v => v));
+
+    const delimLabel = CSV_DELIMITER === '\t' ? 'Tab' : CSV_DELIMITER === ';' ? '分號' : '逗號';
+    setFileInfo(file, RAW_ROWS.length, CSV_HEADERS.length, file.size, delimLabel);
+    autoMapColumns();
+    buildMappingUI();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/** 用指定編碼解碼 ArrayBuffer → string */
+function tryDecode(buf, encoding) {
+  try {
+    return new TextDecoder(encoding).decode(buf);
+  } catch(e) {
+    return '';
+  }
+}
+
+/** 判斷文字是否含大量亂碼（替代字元 / 私有區字元比例過高）*/
+function looksGarbled(text) {
+  if (!text || text.length < 10) return true;
+  // 取前 500 字元（表頭區域）做快速判斷
+  const sample = text.slice(0, 500);
+  const garbage = (sample.match(/[\ufffd\ufffe\uffff]|[\uE000-\uF8FF]/g) || []).length;
+  // 超過 5% 視為亂碼
+  return (garbage / sample.length) > 0.05;
+}
+
+function setFileInfo(file, rowCount, colCount, size, delimLabel) {
+  const ext = file.name.split('.').pop().toUpperCase();
+  document.getElementById('fiName').textContent = file.name;
+  document.getElementById('fiMeta').textContent =
+    `${rowCount} 列 · ${colCount} 欄 · ${(size/1024).toFixed(1)} KB · ${ext}${delimLabel ? '（' + delimLabel + '分隔）' : ''}`;
+  document.getElementById('fileInfoBar').style.display = 'block';
+  document.getElementById('dropWrap').style.display    = 'none';
+}
+
+function autoMapColumns() {
+  // 已被其他欄位佔用的 header（避免同一欄被對應到多個欄位）
+  const used = new Set();
+
+  Object.keys(FIELD_MAP).forEach(field => {
+    const hints = AUTO_HINTS[field];
+    let match = null;
+
+    // ① 完全符合（trim 後相等，不分大小寫）
+    match = CSV_HEADERS.find(h =>
+      !used.has(h) && hints.exact.some(e => h.trim().toLowerCase() === e.toLowerCase())
+    );
+
+    // ② 若無完全符合，改用部分包含
+    if (!match) {
+      match = CSV_HEADERS.find(h =>
+        !used.has(h) && hints.partial.some(p => h.toLowerCase().includes(p.toLowerCase()))
+      );
+    }
+
+    FIELD_MAP[field].key = match || '';
+    if (match) used.add(match);
+  });
+}
+
+function buildMappingUI() {
+  const grid = document.getElementById('mapGrid');
+  grid.innerHTML = '';
+  Object.entries(FIELD_MAP).forEach(([field, cfg]) => {
+    const div = document.createElement('div');
+    div.className = 'map-row';
+    div.innerHTML = `
+      <label class="map-lbl">${cfg.label}</label>
+      <select class="map-sel" id="map-${field}" onchange="FIELD_MAP['${field}'].key=this.value">
+        <option value="">— 略過 —</option>
+        ${CSV_HEADERS.map(h => `<option value="${h}"${cfg.key===h?' selected':''}>${h}</option>`).join('')}
+      </select>`;
+    grid.appendChild(div);
+  });
+  document.getElementById('mappingSection').style.display = 'block';
+}
+
+/* ── GENDER CSV ──────────────────────────────────────────────────────────────── */
+// 自動偵測各欄內容類型（不需使用者手動選）
+function autoDetectGenderColsByContent(rows) {
+  const colCount = Math.max(...rows.map(r => r.length));
+  let uidCol=-1, nameCol=-1, genCol=-1, phone1Col=-1, phone2Col=-1, addrCol=-1;
+
+  // ✅ 清理值：去除前後單引號、空白
+  const cleanVal = v => (v || '').replace(/^'+|'+$/g, '').trim();
+
+  for (let i = 0; i < colCount; i++) {
+    const vals = rows.map(r => cleanVal(r[i])).filter(Boolean);
+    if (!vals.length) continue;
+
+    // 性別欄：大多數值為 F/M/女/男
+    const gHit = vals.filter(v => /^(F|M|女|男|FEMALE|MALE)$/i.test(v)).length;
+    if (gHit / vals.length > 0.6 && genCol < 0) { genCol = i; continue; }
+
+    // 代號欄：大多數值為 4~7 位純數字
+    const nHit = vals.filter(v => /^\d{4,7}$/.test(v)).length;
+    if (nHit / vals.length > 0.7 && uidCol < 0) { uidCol = i; continue; }
+
+    // 電話欄：0 開頭數字串，長度 8~10
+    const pHit = vals.filter(v => /^0\d{7,9}$/.test(v.replace(/[-\s]/g,''))).length;
+    if (pHit / vals.length > 0.4) {
+      if (phone1Col < 0) { phone1Col = i; continue; }
+      if (phone2Col < 0) { phone2Col = i; continue; }
+    }
+
+    // 地址欄：含台灣行政區關鍵字
+    const aHit = vals.filter(v => /[縣市區鄉鎮村里路街道巷弄號樓]/u.test(v)).length;
+    if (aHit / vals.length > 0.3 && addrCol < 0) { addrCol = i; continue; }
+
+    // 姓名欄：2~5 個中文字
+    const cHit = vals.filter(v => /^[\u4e00-\u9fff]{2,5}$/.test(v)).length;
+    if (cHit / vals.length > 0.5 && nameCol < 0) { nameCol = i; }
+  }
+  return { uidCol, nameCol, genCol, phone1Col, phone2Col, addrCol };
+}
+
+let G_AUTO = { uidCol: -1, nameCol: -1, genCol: -1, phone1Col: -1, phone2Col: -1, addrCol: -1 };
+
+function handleGenderFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (isExcel(file)) {
+    // Excel 路徑
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const wb  = XLSX.read(ev.target.result, { type: 'array', raw: false, defval: '' });
+        const ws  = wb.Sheets[wb.SheetNames[0]];
+        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+        if (!aoa.length) { alert('Excel 無內容'); return; }
+        GENDER_RAW_ROWS = aoa.map(row => row.map(v => String(v ?? '').trim()));
+        processGenderRawRows(file.name, aoa.length);
+      } catch(err) { alert('Excel 讀取失敗：' + err.message); }
+    };
+    reader.readAsArrayBuffer(file);
+  } else {
+    // ✅ CSV 路徑：用 ArrayBuffer 自動偵測編碼（BIG5 / UTF-8）
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const buf = ev.target.result;
+      let text = tryDecode(buf, 'UTF-8');
+      if (looksGarbled(text)) text = tryDecode(buf, 'Big5');
+      if (looksGarbled(text)) text = tryDecode(buf, 'GB18030');
+      text = stripBom(text);
+
+      // 偵測分隔符（性別表可能也是 Tab 分隔）
+      const delim = detectDelimiter(text);
+      const origDelim = CSV_DELIMITER;
+      CSV_DELIMITER = delim;  // 暫時切換
+
+      const lines = text.split(/\r?\n/).filter(l => l.trim());
+      if (!lines.length) { alert('性別 CSV 無內容'); CSV_DELIMITER = origDelim; return; }
+      GENDER_RAW_ROWS = lines.map(l => splitCSV(l).map(v => v.trim()));
+      CSV_DELIMITER = origDelim;  // 還原主表分隔符
+
+      processGenderRawRows(file.name, lines.length);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+}
+
+function processGenderRawRows(filename, lineCount) {
+  const colCount  = Math.max(...GENDER_RAW_ROWS.map(r => r.length));
+  const firstA    = (GENDER_RAW_ROWS[0][0] || '').replace(/^'+|'+$/g,'').trim();
+  const hasHeader = !/^\d{4,}$/.test(firstA);
+  document.getElementById('gHasHeader').checked = hasHeader;
+  rebuildGenderHeaders(hasHeader, colCount);
+
+  const dataRows = hasHeader ? GENDER_RAW_ROWS.slice(1) : GENDER_RAW_ROWS;
+
+  // ✅ 判斷是否符合「AllUser 固定格式」
+  // 條件：第一筆資料 A欄是 4~7 位數、D欄是 F/M/女/男
+  const sample = dataRows[0] || [];
+  const cleanV = v => (v || '').replace(/^'+|'+$/g,'').trim();
+  const isAllUserFormat =
+    /^\d{4,7}$/.test(cleanV(sample[0])) &&
+    /^(F|M|女|男)$/i.test(cleanV(sample[3]));
+
+  if (isAllUserFormat) {
+    // ✅ 直接套用固定欄位索引（A=0 B=1 C=2 D=3 E=4 F=5 G=6 H=7 I=8 J=9）
+    G_AUTO = {
+      uidCol:   0,   // A 會員代號
+      nameCol:  2,   // C 姓名
+      genCol:   3,   // D 性別
+      phone1Col:6,   // G 聯絡電話
+      phone2Col:7,   // H 行動電話
+      addrCol:  8,   // I 地址
+    };
+    // 自動設定性別欄下拉
+    buildGenderColSelect(hasHeader);
+    document.getElementById('gColGender').value = 3;
+  } else {
+    // 備援：內容自動偵測
+    G_AUTO = autoDetectGenderColsByContent(dataRows);
+    buildGenderColSelect(hasHeader);
+  }
+
+  updateAutoInfo(hasHeader);
+  updateGColPreview();
+  document.getElementById('gMapBox').classList.add('open');
+  const badge = document.getElementById('gStatusBadge');
+  badge.textContent = isAllUserFormat
+    ? `📄 ${lineCount} 列（寬雲會員格式，欄位已自動對應）`
+    : `📄 ${lineCount} 列，請確認性別欄後套用`;
+  badge.style.display = 'inline-block';
+}
+
+// ✅ 判斷字串是否為可讀文字（非亂碼）
+function isReadableText(str) {
+  if (!str || str.trim() === '') return false;
+  // 計算亂碼字元（私有區、替代字元、控制字元等）比例
+  const garbage = (str.match(/[\x00-\x08\x0b\x0e-\x1f\x7f\ufffd\ufffe\uffff\u0080-\u009f]|[\uE000-\uF8FF]/g) || []).length;
+  return garbage / str.length < 0.3;
+}
+
+// ✅ 欄位標籤：有可讀表頭就用，否則用 A欄/B欄
+function colLabel(rawHeader, colIndex, dataRows) {
+  const letter = String.fromCharCode(65 + colIndex);
+  const fallback = `${letter}欄`;
+  if (isReadableText(rawHeader)) return rawHeader.trim();
+  // 從資料行取樣推測內容類型
+  const vals = dataRows.slice(0, 5).map(r => (r[colIndex] || '').trim()).filter(Boolean);
+  if (!vals.length) return fallback;
+  if (vals.every(v => /^\d{4,7}$/.test(v)))               return `${fallback}（代號）`;
+  if (vals.every(v => /^[\u4e00-\u9fff]{2,5}$/.test(v)))  return `${fallback}（姓名）`;
+  if (vals.every(v => /^(F|M|女|男)$/i.test(v)))           return `${fallback}（性別）`;
+  return fallback;
+}
+
+function rebuildGenderHeaders(hasHeader, colCount) {
+  const dataRows = hasHeader ? GENDER_RAW_ROWS.slice(1) : GENDER_RAW_ROWS;
+  if (hasHeader) {
+    const rawHdrs = GENDER_RAW_ROWS[0] || [];
+    // 每個 header 都做可讀性檢查，亂碼的退回欄位字母
+    GENDER_RAW_HDR = Array.from({ length: colCount }, (_, i) =>
+      colLabel(rawHdrs[i] || '', i, dataRows)
+    );
+  } else {
+    GENDER_RAW_HDR = Array.from({ length: colCount }, (_, i) =>
+      colLabel('', i, dataRows)   // 無表頭：直接從資料推測
+    );
+  }
+}
+
+// 只建立性別欄下拉
+function buildGenderColSelect(hasHeader) {
+  const sel   = document.getElementById('gColGender');
+  const start = hasHeader ? 1 : 0;
+  const sample = GENDER_RAW_ROWS.slice(start, start + 3);
+
+  sel.innerHTML = '<option value="">— 請選擇 —</option>';
+  GENDER_RAW_HDR.forEach((h, i) => {
+    const preview = sample.map(r => r[i] || '').filter(Boolean).join(' / ');
+    const opt     = document.createElement('option');
+    opt.value     = i;
+    opt.textContent = `${h}${preview ? '  → ' + preview : ''}`;
+    sel.appendChild(opt);
+  });
+
+  // 自動選中偵測到的性別欄
+  if (G_AUTO.genCol >= 0) {
+    sel.value = G_AUTO.genCol;
+  }
+}
+
+// 顯示自動偵測結果（代號 / 姓名）
+function updateAutoInfo(hasHeader) {
+  const info  = document.getElementById('gAutoInfo');
+  const lines = [];
+  const colLetter = i => String.fromCharCode(65 + i);
+  const lbl = i => i >= 0 ? (GENDER_RAW_HDR[i] || `${colLetter(i)}欄`) : null;
+
+  if (G_AUTO.uidCol >= 0)    lines.push(`✅ 代號欄 → ${lbl(G_AUTO.uidCol)}`);
+  else                        lines.push(`⚠️ 未偵測到代號欄`);
+  if (G_AUTO.nameCol >= 0)   lines.push(`✅ 姓名欄 → ${lbl(G_AUTO.nameCol)}`);
+  if (G_AUTO.genCol >= 0)    lines.push(`✅ 性別欄 → ${lbl(G_AUTO.genCol)}`);
+  if (G_AUTO.phone1Col >= 0) lines.push(`✅ 聯絡電話 → ${lbl(G_AUTO.phone1Col)}`);
+  if (G_AUTO.phone2Col >= 0) lines.push(`✅ 行動電話 → ${lbl(G_AUTO.phone2Col)}`);
+  if (G_AUTO.addrCol >= 0)   lines.push(`✅ 地址 → ${lbl(G_AUTO.addrCol)}`);
+
+  info.innerHTML = lines.join('<br>');
+}
+
+function onGenderHeaderToggle() {
+  const hasHeader = document.getElementById('gHasHeader').checked;
+  const colCount  = Math.max(...GENDER_RAW_ROWS.map(r => r.length));
+  rebuildGenderHeaders(hasHeader, colCount);
+  const dataRows = hasHeader ? GENDER_RAW_ROWS.slice(1) : GENDER_RAW_ROWS;
+  G_AUTO = autoDetectGenderColsByContent(dataRows);
+  buildGenderColSelect(hasHeader);
+  updateAutoInfo(hasHeader);
+  updateGColPreview();
+}
+
+function updateGColPreview() {
+  const hasHeader = document.getElementById('gHasHeader').checked;
+  const start     = hasHeader ? 1 : 0;
+  const sample    = GENDER_RAW_ROWS.slice(start, start + 3);
+  const genIdx    = parseInt(document.getElementById('gColGender').value);
+  const el        = document.getElementById('gPrevGender');
+  el.textContent  = isNaN(genIdx) ? '—'
+    : (sample.map(r => r[genIdx] || '').filter(Boolean).join(' · ') || '—');
+}
+
+function applyGenderMapping() {
+  const hasHeader = document.getElementById('gHasHeader').checked;
+  const genIdx    = parseInt(document.getElementById('gColGender').value);
+  const uidIdx    = G_AUTO.uidCol;
+  const nameIdx   = G_AUTO.nameCol;
+  const p1Idx     = G_AUTO.phone1Col;
+  const p2Idx     = G_AUTO.phone2Col;
+  const adIdx     = G_AUTO.addrCol;
+
+  if (isNaN(genIdx)) { alert('請選擇「性別」欄'); return; }
+  if (uidIdx < 0 && nameIdx < 0) {
+    alert('無法自動偵測到代號或姓名欄，請確認 CSV 格式（會員代號應為 4~7 位數字，姓名應為 2~5 個中文字）');
+    return;
+  }
+
+  GENDER_MAP = {}; GENDER_NAME_MAP = {}; MEMBER_INFO_MAP = {};
+  let cUid = 0, cName = 0;
+
+  const clean = v => (v || '').replace(/^'+|'+$/g, '').trim();
+  const dataRows = hasHeader ? GENDER_RAW_ROWS.slice(1) : GENDER_RAW_ROWS;
+
+  dataRows.forEach(cols => {
+    const uid  = uidIdx  >= 0 ? clean(cols[uidIdx])  : '';
+    const name = nameIdx >= 0 ? clean(cols[nameIdx]) : '';
+    const raw  = clean(cols[genIdx] ?? '').toUpperCase();
+    const g    = /^(F|女|FEMALE)$/.test(raw) ? 'F' : /^(M|男|MALE)$/.test(raw) ? 'M' : null;
+
+    if (g) {
+      if (uid)  { GENDER_MAP[uid]       = g; cUid++;  }
+      if (name) { GENDER_NAME_MAP[name] = g; cName++; }
+    }
+
+    // ✅ 補充聯絡資訊（'0' 是寬雲空值佔位符，跳過）
+    if (uid) {
+      const p1 = p1Idx >= 0 ? clean(cols[p1Idx]) : '';
+      const p2 = p2Idx >= 0 ? clean(cols[p2Idx]) : '';
+      const ad = adIdx >= 0 ? clean(cols[adIdx])  : '';
+      MEMBER_INFO_MAP[uid] = {
+        phone1:  (p1 && p1 !== '0') ? p1 : '',
+        phone2:  (p2 && p2 !== '0') ? p2 : '',
+        address: (ad && ad !== '0') ? ad : '',
+      };
+    }
+  });
+
+  if (!cUid && !cName) {
+    alert('套用失敗：未讀取到有效性別資料。\n請確認性別欄的值為 F / M / 女 / 男。');
+    return;
+  }
+
+  GENDER_LOADED = true;
+  document.getElementById('gStatusBadge').textContent =
+    `✓ ${cUid ? '代號 '+cUid+'筆' : ''}${cUid&&cName?' / ':''}${cName ? '姓名 '+cName+'筆' : ''}`;
+  document.getElementById('gStatusBadge').style.display = 'inline-block';
+  document.getElementById('gResetLink').style.display   = 'inline';
+  document.getElementById('gMapBox').classList.remove('open');
+
+  if (MEMBER_DATA.length) {
+    // ✅ 以會員資料表補充銷售表中缺少的電話/地址
+    MEMBER_DATA.forEach(m => {
+      const info = m.uid ? MEMBER_INFO_MAP[m.uid] : null;
+      if (info) {
+        if (!m.phone1 && info.phone1) m.phone1 = info.phone1;
+        if (!m.phone2 && info.phone2) m.phone2 = info.phone2;
+        if (!m.address && info.address) m.address = info.address;
+      }
+    });
+    updateGenderStats();
+    renderPieChart();
+    renderTable();
+  }
+}
+
+function getMemberGender(m) {
+  if (m.uid  && GENDER_MAP[m.uid])       return { g: GENDER_MAP[m.uid],       method: 'uid'  };
+  if (m.name && GENDER_NAME_MAP[m.name]) return { g: GENDER_NAME_MAP[m.name], method: 'name' };
+  return { g: null, method: null };
+}
+
+function updateGenderStats() {
+  if (!GENDER_LOADED || !MEMBER_DATA.length) return;
+  let f=0, m=0, hit=0, byUid=0, byName=0;
+  const missed = [];
+
+  MEMBER_DATA.forEach(mem => {
+    const { g, method } = getMemberGender(mem);
+    if (g === 'F')      { f++; hit++; if(method==='uid') byUid++; else byName++; }
+    else if (g === 'M') { m++; hit++; if(method==='uid') byUid++; else byName++; }
+    else missed.push(mem.name || (mem.uid ? '#'+mem.uid : '?'));
+  });
+
+  document.getElementById('gs-f').textContent    = f;
+  document.getElementById('gs-m').textContent    = m;
+  document.getElementById('gs-hit').textContent  = `${hit}/${MEMBER_DATA.length}`;
+  document.getElementById('gs-miss').textContent = MEMBER_DATA.length - hit;
+
+  const ms = [];
+  if (byUid  > 0) ms.push(`代號:${byUid}位`);
+  if (byName > 0) ms.push(`姓名:${byName}位`);
+  document.getElementById('gs-method').textContent = ms.join('、') || '—';
+  document.getElementById('gStats').classList.add('open');
+
+  const unmatchEl = document.getElementById('gUnmatched');
+  if (missed.length) {
+    document.getElementById('gUnmatchedList').textContent =
+      missed.length > 20
+        ? missed.slice(0,20).join('、') + `…等共 ${missed.length} 位`
+        : missed.join('、');
+    unmatchEl.classList.add('open');
+  } else {
+    unmatchEl.classList.remove('open');
+  }
+}
+
+function resetGender() {
+  GENDER_MAP = {}; GENDER_NAME_MAP = {}; MEMBER_INFO_MAP = {};
+  GENDER_RAW_ROWS = []; GENDER_RAW_HDR = [];
+  G_AUTO = { uidCol: -1, nameCol: -1, genCol: -1, phone1Col: -1, phone2Col: -1, addrCol: -1 };
+  GENDER_LOADED = false;
+  document.getElementById('gStatusBadge').style.display = 'none';
+  document.getElementById('gResetLink').style.display   = 'none';
+  document.getElementById('genderInput').value          = '';
+  document.getElementById('gMapBox').classList.remove('open');
+  document.getElementById('gStats').classList.remove('open');
+  document.getElementById('gUnmatched').classList.remove('open');
+  if (MEMBER_DATA.length) { renderPieChart(); renderTable(); }
+}
+
+/* ── CORE PROCESSING ─────────────────────────────────────────────────────────── */
+function processData() {
+  const f = {};
+  Object.entries(FIELD_MAP).forEach(([k, v]) => f[k] = v.key);
+
+  if (!f.orderNo) { alert('請選擇「單號」欄位'); return; }
+  if (!f.buyer)   { alert('請選擇「訂購人」欄位'); return; }
+
+  // ── 合併多列品項 → 一筆訂單
+  // ✅ 去重鍵：單號（trim後）+ 訂單總額，相同則視為同一筆
+  const orderMap = {};
+
+  RAW_ROWS.forEach(row => {
+    const orderNo = (row[f.orderNo] || '').trim();
+    if (!orderNo) return;
+
+    // 讀取金額（實付優先）
+    let amt = 0;
+    if (f.paidAmt && row[f.paidAmt]) amt = parseNum(row[f.paidAmt]);
+    if (!amt && f.amount && row[f.amount]) amt = parseNum(row[f.amount]);
+
+    // ✅ 複合去重鍵：單號 + 金額（避免金額不同的同號訂單被誤合併）
+    const dedupeKey = `${orderNo}||${amt}`;
+
+    if (!orderMap[dedupeKey]) {
+      const buyerRaw = row[f.buyer] || '';
+      const { name: pName, uid: pUid } = parseBuyer(buyerRaw);
+      const mName = f.memberName ? (row[f.memberName] || '') : '';
+      const addr  = (f.address && row[f.address]) ? row[f.address]
+                  : row['地址'] || row['收件地址'] || '';
+
+      orderMap[dedupeKey] = {
+        orderNo,
+        time:     f.orderTime ? row[f.orderTime] : '',
+        amount:   amt,
+        name:     mName.trim() || pName || buyerRaw,
+        uid:      pUid || (/^\d+$/.test(buyerRaw.trim()) ? buyerRaw.trim() : ''),
+        address:  addr.trim(),
+        region:   addrToRegion(addr),
+        phone1:   f.phone1 ? (row[f.phone1] || '') : '',
+        phone2:   f.phone2 ? (row[f.phone2] || '') : '',
+        payment:  f.payment  ? (row[f.payment]  || '') : '',
+        delivery: f.delivery ? (row[f.delivery] || '') : '',
+        products: [],
+      };
+    }
+
+    const prod = f.product ? row[f.product] : '';
+    if (prod) {
+      orderMap[dedupeKey].products.push({
+        prod,
+        qty:   f.qty      ? (parseInt(row[f.qty])  || 1) : 1,
+        price: f.price    ? parseNum(row[f.price])        : 0,
+        sub:   f.subtotal ? parseNum(row[f.subtotal])     : 0,
+      });
+    }
+  });
+
+  // ── 合併訂單 → 一筆會員
+  const memberMap = {};
+  Object.values(orderMap).forEach(order => {
+    const key = order.uid || order.name || '?';
+    if (!memberMap[key]) {
+      memberMap[key] = {
+        uid: order.uid, name: order.name,
+        region: order.region, address: order.address,
+        phone1: order.phone1, phone2: order.phone2,
+        totalAmount: 0, orderCount: 0,
+        orders: [], allProducts: [],
+      };
+    } else {
+      // 補充缺少的字段
+      if (!memberMap[key].uid    && order.uid)    memberMap[key].uid    = order.uid;
+      if (!memberMap[key].name   && order.name)   memberMap[key].name   = order.name;
+      if (!memberMap[key].phone1 && order.phone1) memberMap[key].phone1 = order.phone1;
+      if (!memberMap[key].phone2 && order.phone2) memberMap[key].phone2 = order.phone2;
+      if (!memberMap[key].address && order.address) memberMap[key].address = order.address;
+      if ((!memberMap[key].region || memberMap[key].region === '其他') && order.region !== '其他')
+        memberMap[key].region = order.region;
+    }
+    memberMap[key].totalAmount += order.amount;
+    memberMap[key].orderCount++;
+    memberMap[key].orders.push(order);
+    memberMap[key].allProducts.push(...order.products.map(p => p.prod).filter(Boolean));
+  });
+
+  MEMBER_DATA = Object.values(memberMap).sort((a, b) => b.totalAmount - a.totalAmount);
+  FILTERED    = MEMBER_DATA.filter(m => !isHiddenMember(m));
+
+  renderKPI(Object.values(orderMap));
+  renderCharts();
+  renderTable();
+  if (GENDER_LOADED) { updateGenderStats(); renderPieChart(); }
+
+  ['kpiSection','chartsSection','tableSection'].forEach(id =>
+    document.getElementById(id).style.display = 'block'
+  );
+  setTimeout(() => document.getElementById('kpiSection').scrollIntoView({ behavior: 'smooth' }), 80);
+}
+
+function parseBuyer(raw) {
+  const s = (raw || '').trim();
+  const m = s.match(/^(.+?)\((\d+)\)\s*$/);
+  if (m)  return { name: m[1].trim(), uid: m[2].trim() };
+  const m2 = s.match(/^(.+?)\(([^)]+)\)\s*$/);
+  if (m2) return { name: m2[1].trim(), uid: m2[2].trim() };
+  if (/^\d+$/.test(s)) return { name: '', uid: s };
+  return { name: s, uid: '' };
+}
+
+function parseNum(v) {
+  return parseFloat((v || '').replace(/[$,\s]/g, '')) || 0;
+}
+
+function addrToRegion(addr) {
+  if (!addr) return '其他';
+  if (/台北|臺北|新北|基隆|桃園|新竹|苗栗|宜蘭/.test(addr)) return '北部';
+  if (/台中|臺中|彰化|南投|雲林|嘉義/.test(addr))            return '中部';
+  if (/台南|臺南|高雄|屏東/.test(addr))                       return '南部';
+  if (/花蓮|台東|臺東/.test(addr))                            return '東部';
+  if (/澎湖|金門|連江|馬祖/.test(addr))                       return '離島';
+  return '其他';
+}
+
+/* ── KPI ─────────────────────────────────────────────────────────────────────── */
+function renderKPI(orders) {
+  const gmv = orders.reduce((s, o) => s + o.amount, 0);
+  const mc  = MEMBER_DATA.length;
+  const oc  = orders.length;
+  document.getElementById('k-gmv').textContent       = fmtNT(gmv);
+  document.getElementById('k-members').textContent   = mc;
+  document.getElementById('k-orders').textContent    = oc;
+  document.getElementById('k-avg').textContent       = fmtNT(oc ? gmv / oc : 0);
+  document.getElementById('k-perMember').textContent = fmtNT(mc ? gmv / mc : 0);
+}
+
+/* ── CHARTS ──────────────────────────────────────────────────────────────────── */
+Chart.register(ChartDataLabels);
+
+const PALETTE = ['#3be8b0','#5bc8ff','#ffb547','#ff5f7e','#a78bfa',
+                 '#34d399','#fb923c','#60a5fa','#f472b6','#e879f9'];
+const REGION_COLOR = { '北部':'#3be8b0','中部':'#5bc8ff','南部':'#ffb547','東部':'#a78bfa','離島':'#ff5f7e','其他':'#4a6278' };
+
+function isLight() { return document.documentElement.classList.contains('light'); }
+
+function destroyChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function makeChart(id, config) {
+  destroyChart(id);
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  const tick = isLight() ? '#7a94aa' : '#4a6278';
+  const grid = isLight() ? 'rgba(200,214,229,0.5)' : 'rgba(30,45,61,0.5)';
+  const leg  = isLight() ? '#1a2b3c' : '#dce8f5';
+
+  // ✅ 深度合併 plugins：extraOpts.plugins 可覆蓋 legend，但 datalabels 永遠保留
+  const extraOpts    = config.extraOpts || {};
+  const extraPlugins = extraOpts.plugins || {};
+  const { plugins: _p, ...extraOptsRest } = extraOpts;
+
+  const mergedPlugins = {
+    legend: { labels: { color: leg, font: { size: 11, family: "'JetBrains Mono'" } } },
+    ...(config.tooltipCb ? { tooltip: { callbacks: { label: config.tooltipCb } } } : {}),
+    ...extraPlugins,                                    // e.g. legend position: 'right'
+    datalabels: config.datalabels ?? { display: false }, // 最後設定，確保不被覆蓋
+  };
+
+  charts[id] = new Chart(ctx, {
+    type: config.type,
+    data: config.data,
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: mergedPlugins,
+      scales: config.type === 'bar' ? {
+        x: { ticks: { color: tick, font: { size: 10 } }, grid: { color: grid } },
+        y: { ticks: { color: tick, font: { size: 10 } }, grid: { color: grid } },
+      } : {},
+      ...extraOptsRest,
+    },
+  });
+}
+
+function renderCharts() {
+  // ✅ 長條圖與圓餅圖統一使用 isHiddenMember 過濾
+  const top10 = MEMBER_DATA
+    .filter(m => !isHiddenMember(m))
+    .slice(0, 10);
+
+  makeChart('topChart', {
+    type: 'bar',
+    data: {
+      labels: top10.map(m => m.name.length > 8 ? m.name.slice(0,8)+'…' : m.name),
+      datasets: [{
+        label: '消費總額',
+        data: top10.map(m => m.totalAmount),
+        backgroundColor: top10.map((_, i) => PALETTE[i % PALETTE.length]),
+        borderRadius: 5,
+      }],
+    },
+    extraOpts: { indexAxis: 'y', plugins: { legend: { display: false } } },
+  });
+
+  renderPieChart();
+}
+
+function renderPieChart() {
+  const type = document.getElementById('pieSel').value;
+  let labels = [], values = [], colors = [], sub = '';
+
+  if (type === 'region') {
+    const map = {};
+    const seen = new Set();
+    MEMBER_DATA.flatMap(m => m.orders).forEach(o => {
+      if (seen.has(o.orderNo)) return; seen.add(o.orderNo);
+      const r = o.region || '其他'; map[r] = (map[r] || 0) + 1;
+    });
+    const ORDER = ['北部','中部','南部','東部','離島','其他'];
+    const sorted = ORDER.filter(k => map[k]).map(k => [k, map[k]]);
+    Object.entries(map).forEach(([k,v]) => { if (!ORDER.includes(k)) sorted.push([k,v]); });
+    labels = sorted.map(e=>e[0]); values = sorted.map(e=>e[1]);
+    colors = labels.map(l => REGION_COLOR[l] || '#4a6278');
+    sub = '依收件地址自動分析北中南東離島（不重複訂單）';
+
+  } else if (type === 'gender') {
+    let byUid=0, byName=0;
+
+    if (GENDER_LOADED && MEMBER_DATA.length) {
+      const gm = { 'F（女）':0, 'M（男）':0 };
+      // ✅ 排除隱藏帳戶再計算性別佔比
+      MEMBER_DATA.filter(m => !isHiddenMember(m)).forEach(m => {
+        const { g, method } = getMemberGender(m);
+        if      (g === 'F') { gm['F（女）']++; if(method==='uid') byUid++; else byName++; }
+        else if (g === 'M') { gm['M（男）']++; if(method==='uid') byUid++; else byName++; }
+        // ✅ 未比對到的直接忽略，不加入圓餅圖
+      });
+
+      // 只顯示有值的項目（F / M），未知不顯示
+      const filtered = Object.entries(gm).filter(e => e[1] > 0);
+      labels = filtered.map(e => e[0]);
+      values = filtered.map(e => e[1]);
+      colors = labels.map(l => l.includes('女') ? '#ff5f7e' : '#5bc8ff');
+      const matched = gm['F（女）'] + gm['M（男）'];
+      const ms = [];
+      if (byUid>0)  ms.push(`代號:${byUid}位`);
+      if (byName>0) ms.push(`姓名:${byName}位`);
+      sub = `已比對 ${matched} 位會員之性別佔比${ms.length?'（'+ms.join('、')+'）':''}（未比對不計入）`;    } else {
+      labels = ['尚未套用性別表'];
+      values = [1];
+      colors = ['#4a6278'];
+      sub = '請上傳並套用性別對應表以取得準確數據';
+    }
+
+  } else if (type === 'payment') {
+    const map = {}; const seen = new Set();
+    RAW_ROWS.forEach(row => {
+      const o = row[FIELD_MAP.orderNo.key] || ''; if (seen.has(o)) return; seen.add(o);
+      const p = (FIELD_MAP.payment.key ? row[FIELD_MAP.payment.key] : '') || row['付款方式'] || '未知';
+      map[p] = (map[p]||0)+1;
+    });
+    const s = Object.entries(map).filter(e=>e[0]).sort((a,b)=>b[1]-a[1]);
+    labels = s.map(e=>e[0]); values = s.map(e=>e[1]); colors = PALETTE;
+    sub = '各付款方式訂單數佔比';
+
+  } else if (type === 'delivery') {
+    const map = {}; const seen = new Set();
+    RAW_ROWS.forEach(row => {
+      const o = row[FIELD_MAP.orderNo.key] || ''; if (seen.has(o)) return; seen.add(o);
+      const d = (FIELD_MAP.delivery.key ? row[FIELD_MAP.delivery.key] : '') || row['運送方式'] || '未知';
+      map[d] = (map[d]||0)+1;
+    });
+    const s = Object.entries(map).filter(e=>e[0]).sort((a,b)=>b[1]-a[1]);
+    labels = s.map(e=>e[0]); values = s.map(e=>e[1]); colors = PALETTE;
+    sub = '各運送方式訂單數佔比';
+
+  } else if (type === 'productAmt') {
+
+    // ── 隱藏品項（不列入圓餅圖）
+    const HIDE_PRODUCTS = ['金杏仁粉'];
+
+    // ── 品名合併對照表（原始名稱片段 → 合併後名稱）
+    const MERGE_MAP = [
+      { pattern: /古典關健/,          canonical: '古典關健'   },
+      { pattern: /古典晶萃|古典晶華/, canonical: '古典晶萃'   },
+      { pattern: /黑髮寶|黑法寶/,     canonical: '黑髮寶'     },
+    ];
+
+    // ── 必顯示品項（無銷售顯示 0%）
+    const FIXED_PRODUCTS = [
+      '頂級珍珠粉','經舒熱飲','王者之健',
+      '男青春前期','男青春期','女青春前期','女青春期',
+      '優視學','1g小強身','2g小強身','3g小強身',
+    ];
+
+    function normProd(raw) {
+      let name = (raw || '').trim();
+      // 移除促銷前綴 【...】
+      name = name.replace(/^【[^】]*】\s*/, '');
+      // 移除括號內容 （...）(...)
+      name = name.replace(/[（(][^）)]*[）)]/g, '');
+      // 移除規格後綴  /4盒(120日份) 等
+      name = name.replace(/\/\d+[盒入錠包袋瓶組件][^/]*/g, '');
+      // 移除末尾數量
+      name = name.replace(/\d+[入盒]$/, '');
+      name = name.replace(/單[盒入]$/, '');
+      // 移除分期序號「第1盒...」
+      name = name.replace(/第\d+[盒入].*$/, '');
+      name = name.trim() || raw;
+
+      // 套用合併對照
+      for (const { pattern, canonical } of MERGE_MAP) {
+        if (pattern.test(name)) return canonical;
+      }
+      return name;
+    }
+
+    // ── 累計各品項銷售額
+    const map = {};
+    RAW_ROWS.forEach(row => {
+      const p = row[FIELD_MAP.product.key] || '';
+      if (!p) return;
+      const norm = normProd(p);
+      // 隱藏名單
+      if (HIDE_PRODUCTS.some(h => norm.includes(h) || p.includes(h))) return;
+      const s = parseNum(row[FIELD_MAP.subtotal.key])
+             || parseNum(row[FIELD_MAP.price.key]) * (parseInt(row[FIELD_MAP.qty.key]) || 1);
+      if (s > 0) map[norm] = (map[norm] || 0) + s;
+    });
+
+    // ── 補上必顯示但無銷售的品項（value=0）
+    FIXED_PRODUCTS.forEach(fp => {
+      // 若合併後名稱已存在則略過
+      const merged = normProd(fp);
+      if (!(merged in map) && !(fp in map)) map[fp] = 0;
+    });
+
+    // ── 排序：有銷售的降冪，後面接 0 值品項（字母序）
+    const withSales    = Object.entries(map).filter(e => e[1]  > 0).sort((a,b) => b[1]-a[1]);
+    const withoutSales = Object.entries(map).filter(e => e[1] === 0).sort((a,b) => a[0].localeCompare(b[0],'zh-TW'));
+    const sorted       = [...withSales, ...withoutSales];
+
+    labels = sorted.map(e => e[0]);
+    values = sorted.map(e => e[1]);
+
+    // 0 值品項用灰色，有銷售的依 PALETTE 循環
+    const extPalette = [...PALETTE, '#c084fc','#86efac','#fca5a5','#67e8f9','#fcd34d'];
+    let pIdx = 0;
+    colors = sorted.map(([,v]) => v > 0 ? extPalette[pIdx++ % extPalette.length] : '#2a3a4a');
+
+    sub = '各產品銷售金額佔比（已合併同品項・灰色=無銷售）';
+  }
+
+  document.getElementById('pieSub').textContent = sub;
+
+  // ── 計算百分比
+  const totalForPct = values.filter(v => v > 0).reduce((s, v) => s + v, 0);
+  const pcts = values.map(v =>
+    (v > 0 && totalForPct) ? Math.round(v / totalForPct * 100) : 0
+  );
+
+  const colPool = colors.length >= labels.length ? colors
+                : [...PALETTE, '#c084fc','#86efac','#fca5a5','#67e8f9'];
+  const bgColors = colPool.slice(0, labels.length);
+
+  // ── Chart.js（無內建圖例）
+  makeChart('pieChart', {
+    type: 'pie',
+    data: {
+      labels,
+      datasets: [{
+        data: values,
+        backgroundColor: bgColors,
+        borderWidth: 1.5,
+        borderColor: isLight() ? 'rgba(255,255,255,0.8)' : 'rgba(22,31,44,0.8)',
+        hoverOffset: 8,
+      }],
+    },
+    datalabels: {
+      color: '#fff',
+      font: { size: 11, weight: 'bold', family: "'JetBrains Mono'" },
+      formatter: (val, ctx) => {
+        const total = ctx.dataset.data.filter(v => v > 0).reduce((s,v) => s+v, 0);
+        if (val === 0) return '';
+        const pct = total ? Math.round(val / total * 100) : 0;
+        return pct < 4 ? '' : pct + '%';
+      },
+      textShadowColor: 'rgba(0,0,0,0.8)', textShadowBlur: 6,
+      anchor: 'center', align: 'center', clamp: true,
+    },
+    tooltipCb: ctx => {
+      const total  = ctx.dataset.data.filter(v => v > 0).reduce((s,v)=>s+v,0);
+      const pct    = (ctx.parsed > 0 && total) ? Math.round(ctx.parsed/total*100) : 0;
+      const valStr = ctx.parsed > 0 ? `NT$${ctx.parsed.toLocaleString()}` : '無銷售';
+      return ` ${ctx.label}：${valStr} (${pct}%)`;
+    },
+    extraOpts: {
+      plugins: {
+        legend: { display: false },  // ✅ 關閉內建圖例，改用自訂 HTML
+      },
+    },
+  });
+
+  // ── 自訂 HTML 圖例（兩欄網格，無空白問題）
+  const legendEl = document.getElementById('pieLegend');
+  if (legendEl) {
+    legendEl.innerHTML = labels.map((lbl, i) => {
+      const color = bgColors[i] || '#888';
+      const pct   = pcts[i];
+      const pctColor = pct === 0 ? 'color:var(--muted)' : '';
+      return `
+        <div class="pie-legend-item" title="${lbl}">
+          <span class="pie-legend-dot" style="background:${color}"></span>
+          <span class="pie-legend-label" style="${pctColor}">${lbl}</span>
+          <span class="pie-legend-pct" style="${pctColor}">${pct}%</span>
+        </div>`;
+    }).join('');
+  }
+}
+
+/* ── TABLE ───────────────────────────────────────────────────────────────────── */
+// ✅ 彙總表隱藏帳戶（名稱含以下關鍵字的會員不顯示）
+const TABLE_HIDE_KEYWORDS = [
+  '中醫', '診所', '重複註冊', '醫師', '醫生', '醫院', '藥師',
+  '古典醫師帳戶', '古典藥園-員購登入', '醫生專用帳戶', '醫師專用', '醫生專用',
+  '古典醫生', '醫師帳戶', '醫生帳戶', '古典藥園', '大眾中醫',
+  '員購', '白貫宏', '白家綺', '陳永昌', '楊珮藝', '蔡淑娟', '劉曉燕',
+];
+
+function isHiddenMember(m) {
+  return TABLE_HIDE_KEYWORDS.some(kw => (m.name || '').includes(kw));
+}
+
+function filterTable() {
+  const q = document.getElementById('searchBox').value.trim().toLowerCase();
+  FILTERED = MEMBER_DATA
+    .filter(m => !isHiddenMember(m))   // ✅ 先過濾隱藏帳戶
+    .filter(m => !q || m.name.toLowerCase().includes(q) || m.uid.toLowerCase().includes(q));
+  currentPage = 1;
+  renderTable();
+}
+
+function renderTable() {
+  const sort = document.getElementById('sortSel').value;
+  FILTERED.sort((a, b) => {
+    if (sort === 'amount-desc') return b.totalAmount - a.totalAmount;
+    if (sort === 'amount-asc')  return a.totalAmount - b.totalAmount;
+    if (sort === 'orders-desc') return b.orderCount  - a.orderCount;
+    if (sort === 'name-asc')    return a.name.localeCompare(b.name, 'zh-TW');
+    return 0;
+  });
+
+  document.getElementById('recordCount').textContent = `共 ${FILTERED.length} 位會員`;
+
+  const pages = Math.max(1, Math.ceil(FILTERED.length / PAGE_SIZE));
+  currentPage = Math.min(currentPage, pages);
+  const slice = FILTERED.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
+
+  // 全域排名（依金額）
+  const rankMap = {};
+  [...MEMBER_DATA].sort((a,b) => b.totalAmount-a.totalAmount).forEach((m,i) => {
+    rankMap[m.uid||m.name] = i+1;
+  });
+
+  const tbody = document.getElementById('memberTbody');
+  tbody.innerHTML = '';
+
+  slice.forEach(member => {
+    const rank  = rankMap[member.uid||member.name] || '—';
+    const rCls  = rank===1?'rank-1':rank===2?'rank-2':rank===3?'rank-3':'rank-n';
+    const rLbl  = rank===1?'🥇':rank===2?'🥈':rank===3?'🥉':rank;
+    const reg   = member.region || '其他';
+    const prods = [...new Set(member.allProducts)];
+
+    // 性別欄：UID → 姓名比對，無性別表時顯示「—」
+    let gCell = '<span style="color:var(--muted);font-size:10px">—</span>';
+    if (GENDER_LOADED) {
+      const { g, method } = getMemberGender(member);
+      if (g) {
+        const tag = method === 'uid'
+          ? '<span class="match-tag match-uid" title="依代號比對">UID</span>'
+          : '<span class="match-tag match-name" title="依姓名比對">名</span>';
+        gCell = `<span class="gender-badge ${g}">${g === 'F' ? '♀ 女' : '♂ 男'}</span>${tag}`;
+      } else {
+        gCell = '<span style="color:var(--muted);font-size:10px">未知</span>';
+      }
+    }
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="rank-badge ${rCls}">${rLbl}</span></td>
+      <td style="font-weight:600;white-space:nowrap">${member.name}</td>
+      <td>${member.uid
+          ? `<span class="uid-badge">${member.uid}</span>`
+          : '<span style="color:var(--muted);font-size:11px">無代號</span>'}</td>
+      <td>${gCell}</td>
+      <td><span class="region-badge region-${reg}">${reg}</span></td>
+      <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${member.phone1 || '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-family:var(--mono);font-size:11px;white-space:nowrap">${member.phone2 || '<span style="color:var(--muted)">—</span>'}</td>
+      <td style="font-size:11px;max-width:180px;word-break:break-all">${
+        member.address
+          ? member.address.slice(3) || '—'
+          : '<span style="color:var(--muted)">—</span>'
+      }</td>
+      <td style="font-family:var(--mono);color:var(--blue);text-align:center">${member.orderCount}</td>
+      <td>
+        <div class="orders-list">
+          ${member.orders.map(o => {
+            const date     = o.time ? o.time.slice(0, 10) : '';
+            const timeStr  = o.time && o.time.length > 10 ? o.time.slice(11, 16) : '';
+            const payment  = o.payment  || '';
+            const delivery = o.delivery || '';
+            const extras   = [payment, delivery].filter(Boolean).join('・');
+            return `<div class="order-tag" title="${o.time}">
+              <span style="color:var(--muted);font-size:9px">${date}${timeStr ? ' ' + timeStr : ''}</span>
+              <span style="margin: 0 3px">│</span>
+              <span style="color:var(--blue);font-size:10px">${o.orderNo}</span>
+              <span style="color:var(--accent);font-weight:600"> NT$${o.amount.toLocaleString()}</span>
+              ${extras ? `<span style="color:var(--muted);font-size:9px;margin-left:4px">${extras}</span>` : ''}
+            </div>`;
+          }).join('')}
+        </div>
+      </td>
+      <td class="amount-cell">NT$${member.totalAmount.toLocaleString()}</td>
+      <td>
+        <div class="products-list">
+          ${prods.slice(0,4).map(p => `<div class="product-tag">${p}</div>`).join('')}
+          ${prods.length > 4 ? `<div style="font-size:10px;color:var(--muted)">…另 ${prods.length-4} 項</div>` : ''}
+        </div>
+      </td>`;
+    tbody.appendChild(tr);
+  });
+
+  renderPagination(pages);
+}
+
+function renderPagination(pages) {
+  const pg = document.getElementById('pagination');
+  pg.innerHTML = '';
+
+  const prev = document.createElement('button');
+  prev.className = 'pg-btn'; prev.textContent = '←'; prev.disabled = currentPage === 1;
+  prev.onclick = () => { currentPage--; renderTable(); };
+  pg.appendChild(prev);
+
+  const info = document.createElement('span');
+  info.className = 'pg-info'; info.textContent = `第 ${currentPage} / ${pages} 頁`;
+  pg.appendChild(info);
+
+  const next = document.createElement('button');
+  next.className = 'pg-btn'; next.textContent = '→'; next.disabled = currentPage === pages;
+  next.onclick = () => { currentPage++; renderTable(); };
+  pg.appendChild(next);
+}
+
+/* ── EXPORT ──────────────────────────────────────────────────────────────────── */
+function exportFiltered() {
+  if (!FILTERED.length) { alert('目前沒有資料可匯出'); return; }
+
+  // 依目前排序複製一份，並再次排除隱藏帳戶（雙重保險）
+  const sort   = document.getElementById('sortSel').value;
+  const sorted = [...FILTERED]
+    .filter(m => !isHiddenMember(m))   // ✅ 匯出前再次過濾
+    .sort((a, b) => {
+      if (sort === 'amount-desc') return b.totalAmount - a.totalAmount;
+      if (sort === 'amount-asc')  return a.totalAmount - b.totalAmount;
+      if (sort === 'orders-desc') return b.orderCount  - a.orderCount;
+      if (sort === 'name-asc')    return a.name.localeCompare(b.name, 'zh-TW');
+      return 0;
+    });
+
+  // 全域排名（依總金額，排除隱藏帳戶）
+  const rankMap = {};
+  [...MEMBER_DATA]
+    .filter(m => !isHiddenMember(m))
+    .sort((a,b) => b.totalAmount - a.totalAmount)
+    .forEach((m, i) => rankMap[m.uid||m.name] = i+1);
+
+  const hdrs = ['排名','會員姓名','會員代號','性別','比對方式','地區',
+                '聯絡電話','行動電話','地址','訂單筆數','消費總金額','訂單清單','購買品項'];
+
+  const rows = sorted.map(m => {
+    const { g, method } = getMemberGender(m);
+    return [
+      rankMap[m.uid||m.name] || '',
+      m.name,
+      m.uid || '',
+      g === 'F' ? '女' : g === 'M' ? '男' : '',
+      method === 'uid' ? '代號' : method === 'name' ? '姓名' : '',
+      m.region || '',
+      m.phone1 || '',
+      m.phone2 || '',
+      m.address ? m.address.slice(3) : '',   // ✅ 移除前三碼（郵遞區號）
+      m.orderCount,
+      m.totalAmount,
+      m.orders.map(o => {
+        const date     = o.time ? o.time.slice(0, 10) : '';
+        const payment  = o.payment  || '';
+        const delivery = o.delivery || '';
+        const extras   = [payment, delivery].filter(Boolean).join('/');
+        return `${o.orderNo} NT$${o.amount}${date ? ' ' + date : ''}${extras ? ' [' + extras + ']' : ''}`;
+      }).join(' | '),
+      [...new Set(m.allProducts)].join(' / '),
+    ];
+  });
+
+  const q   = document.getElementById('searchBox').value.trim();
+  const suf = q ? `_搜尋(${q})` : '_全部';
+  const filename = `KYIA_會員彙總表${suf}.xlsx`;
+
+  // ✅ 用 SheetJS 直接產生 XLSX 檔案
+  try {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([hdrs, ...rows]);
+
+    // 自動欄寬（依內容長度估算）
+    const colWidths = hdrs.map((h, i) => {
+      const maxLen = Math.max(
+        h.length,
+        ...rows.map(r => String(r[i] || '').length).slice(0, 50)
+      );
+      return { wch: Math.min(Math.max(maxLen, 8), 60) };
+    });
+    ws['!cols'] = colWidths;
+
+    XLSX.utils.book_append_sheet(wb, ws, '會員彙總表');
+    XLSX.writeFile(wb, filename);
+  } catch(e) {
+    alert('XLSX 匯出失敗：' + e.message);
+  }
+}
+
+// 保留 downloadCSV 供彈窗備援使用（CSV 複製功能）
+function downloadCSV(content, filename) {
+  window._csvCache = { content, filename };
+  document.getElementById('csvModalFilename').textContent = filename;
+  document.getElementById('csvTextarea').value = content;
+  document.getElementById('copySuccess').classList.remove('show');
+  document.getElementById('csvModalBg').classList.add('open');
+}
+
+function closeCSVModal() {
+  document.getElementById('csvModalBg').classList.remove('open');
+}
+
+function copyCSVText() {
+  const ta = document.getElementById('csvTextarea');
+  ta.select();
+  ta.setSelectionRange(0, ta.value.length); // 手機相容
+  const text = ta.value;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(showCopySuccess).catch(() => {
+      legacyCopy(ta);
+    });
+  } else {
+    legacyCopy(ta);
+  }
+}
+
+function legacyCopy(ta) {
+  try { document.execCommand('copy'); showCopySuccess(); }
+  catch(e) { alert('請手動全選（Ctrl+A）再複製（Ctrl+C）'); }
+}
+
+function showCopySuccess() {
+  const el = document.getElementById('copySuccess');
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 2500);
+}
+
+function tryCsvDownload() {
+  const { content, filename } = window._csvCache || {};
+  if (!content) return;
+  try {
+    // ✅ Blob + createObjectURL：Chrome/Edge 桌面版最可靠
+    const blob = new Blob(['\uFEFF' + content.replace(/^\uFEFF/,'')],
+                          { type: 'text/csv;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 500);
+  } catch(e) {
+    alert('瀏覽器不支援直接下載，請使用上方「複製全部」後貼入 Excel 儲存。');
+  }
+}
+
+function fmtNT(n) {
+  if (n >= 1e6) return `NT$${(n/1e6).toFixed(2)}M`;
+  if (n >= 1e3) return `NT$${n.toLocaleString()}`;
+  return `NT$${n}`;
+}
+
+/* ── DEMO DATA ───────────────────────────────────────────────────────────────── */
+function loadDemo() {
+  const csv = `訂單時間,單號,訂單總額,點數折抵,特別折扣,實付金額,付款方式,運送方式,會員代號,訂購人,收件人,聯絡電話,行動電話,地址,買方備注,序,代號,品牌,品名,單重,數量,單位,小計
+2026-03-03 09:12,O2026030300001,4290,0,0,4290,信用卡,宅配,21011,21011,王秀娟,0912345678,0912345678,台北市信義區信義路五段7號,,"1",SB-00001,貴妃,【週年慶】貴妃珍寶2盒(60日份),4290,1,盒,4290
+2026-03-03 10:45,O2026030300002,2178,0,0,2178,到店付款,到店領取,20432,20432,古典藥園員購,0422345678,0422345678,台中市西區民生路100號,,1,RS-L00001,珍珠,珍珠元氣美人（450錠/30日份）,2178,1,盒,2178
+2026-03-04 08:30,O2026030400001,5544,0,0,5544,黑貓宅配,宅配,21880,21880,丁融遠,0933345678,0933345678,高雄市苓雅區四維三路2號,,1,BN-V00001,素爾,素爾健（270錠/15日份）,1800,1,盒,1800
+2026-03-04 08:30,O2026030400001,5544,0,0,5544,黑貓宅配,宅配,21880,21880,丁融遠,0933345678,0933345678,高雄市苓雅區四維三路2號,,2,GG-A00001,成長,成長精華女青春期（135錠/15日份）,1200,1,盒,1200
+2026-03-04 08:30,O2026030400001,5544,0,0,5544,黑貓宅配,宅配,21880,21880,丁融遠,0933345678,0933345678,高雄市苓雅區四維三路2號,,3,AG-O00001,無敵藻,無敵藻（280錠/依年齡分剩量）,2544,1,盒,2544
+2026-03-04 11:20,O2026030400002,2475,0,0,2475,到店付款,大眾中醫,31109,31109,余淑惠,0955545678,0955545678,台中市南屯區五權西路88號,,1,EY-L00001,古典晶萃,古典晶萃(1盒)第1盒,2475,1,盒,2475
+2026-03-05 09:00,O2026030500001,8250,0,0,8250,信用卡,宅配,20047,20047,何淑芬,0966645678,0966645678,新北市板橋區文化路一段188號,,1,EY-L00002,古典晶萃,古典晶萃/4盒(120日份),8250,1,組,8250
+2026-03-06 10:10,O2026030600001,3200,0,0,3200,信用卡,宅配,21011,21011,王秀娟,0912345678,0912345678,台北市信義區信義路五段7號,,1,AG-O00001,無敵藻,無敵藻（280錠）,3200,1,盒,3200
+2026-03-07 14:30,O2026030700001,4950,85,0,4865,到店付款,大眾中醫,34095,34095,邱善芸,0968906969,0968906969,台中市沙鹿區中山路300號,,1,SB-00000,小強膚,3g小強膚4盒,4950,1,組,4950
+2025-12-11 08:00,O2025121100001,11880,0,0,11880,信用卡,宅配,27425,27425,陳正義,0911111111,0911111111,台北市大安區仁愛路四段99號,,1,AA-00001,頂級,頂級禮盒組,11880,1,組,11880
+2025-12-19 09:00,O2025121900001,11880,0,0,11880,信用卡,宅配,35579,35579,邱惠倫,0922222222,0922222222,新北市中和區中山路二段42號,,1,AA-00001,頂級,頂級禮盒組,11880,1,組,11880
+2025-12-08 10:00,O2025120800001,10560,0,0,10560,信用卡,宅配,23446,23446,林倉玄,0933333333,0933333333,台中市北區進化路200號,,1,BB-00001,精華,精華組合,10560,1,組,10560
+2026-02-14 09:00,O2026021400001,6600,0,0,6600,信用卡,宅配,29988,29988,林美玲,0977788888,0977788888,花蓮縣吉安鄉中正路一段50號,,1,CC-00001,花蓮特選,花蓮特選禮盒,6600,1,組,6600
+2026-01-20 10:00,O2026012000001,3300,0,0,3300,宅配貨到付款,宅配,38801,38801,陳志明,0966611111,0966611111,屏東縣屏東市仁愛路55號,,1,DD-00001,南部精選,南部精選組,3300,1,組,3300`;
+
+  const lines = csv.split('\n').filter(l => l.trim());
+  CSV_HEADERS = splitCSV(lines[0]);
+  RAW_ROWS = lines.slice(1).map(l => {
+    const cols = splitCSV(l);
+    const obj  = {};
+    CSV_HEADERS.forEach((h, i) => obj[h] = (cols[i]||'').trim());
+    return obj;
+  });
+
+  document.getElementById('fiName').textContent = 'DEMO_銷售明細表.csv';
+  document.getElementById('fiMeta').textContent = `${RAW_ROWS.length} 列（示範模式）`;
+  document.getElementById('fileInfoBar').style.display = 'block';
+  document.getElementById('dropWrap').style.display    = 'none';
+
+  autoMapColumns();
+  buildMappingUI();
+  setTimeout(processData, 150);
+}
+
+/* ── THEME ───────────────────────────────────────────────────────────────────── */
+function toggleTheme() {
+  const light = document.documentElement.classList.toggle('light');
+  document.getElementById('themeBtn').textContent = light ? '🌙 深色' : '☀️ 淺色';
+  localStorage.setItem('kyia-theme', light ? 'light' : 'dark');
+  if (MEMBER_DATA.length) renderCharts();
+}
+
+// 初始化主題
+(function () {
+  const saved = localStorage.getItem('kyia-theme');
+  if (saved === 'light') {
+    document.documentElement.classList.add('light');
+    document.addEventListener('DOMContentLoaded', () => {
+      const btn = document.getElementById('themeBtn');
+      if (btn) btn.textContent = '🌙 深色';
+    });
+  }
+})();
+
+/* ── RESET ───────────────────────────────────────────────────────────────────── */
+function resetAll() {
+  RAW_ROWS = []; CSV_HEADERS = []; MEMBER_DATA = []; FILTERED = [];
+  document.getElementById('fileInfoBar').style.display = 'none';
+  document.getElementById('dropWrap').style.display    = 'block';
+  document.getElementById('mappingSection').style.display = 'none';
+  ['kpiSection','chartsSection','tableSection'].forEach(id =>
+    document.getElementById(id).style.display = 'none'
+  );
+  document.getElementById('csvInput').value = '';
+  Object.keys(charts).forEach(id => { charts[id].destroy(); delete charts[id]; });
+  if (GENDER_LOADED) updateGenderStats();
+}
+</script>
+</body>
+</html>
