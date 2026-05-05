@@ -785,32 +785,60 @@ function setMode(m) {
 }
 
 // ===== CAMERA =====
+let scanTimer = null;
+
 async function toggleCamera() {
-  if (stream) {
-    stopCamera();
-    return;
-  }
+  if (stream) { stopCamera(); return; }
   try {
-    stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode, width: { ideal: 640 }, height: { ideal: 480 } }
-    });
+    // 要求高解析度後鏡頭，手機後鏡頭通常支援 1920x1080
+    const constraints = {
+      video: {
+        facingMode: { ideal: facingMode },
+        width:  { ideal: 1920, min: 640 },
+        height: { ideal: 1080, min: 480 },
+        focusMode: 'continuous'
+      }
+    };
+    stream = await navigator.mediaDevices.getUserMedia(constraints);
     const video = document.getElementById('video');
     video.srcObject = stream;
+
+    // 等 metadata 載入後再開始掃（確保 videoWidth/Height 正確）
+    await new Promise(res => {
+      video.onloadedmetadata = () => { video.play(); res(); };
+    });
+
     document.getElementById('scannerPlaceholder').style.display = 'none';
     document.getElementById('scanOverlay').style.display = 'flex';
     document.getElementById('btnCamera').textContent = '關閉相機';
     document.getElementById('btnSwitch').style.display = 'inline-flex';
     scanning = true;
-    requestAnimationFrame(scanFrame);
+    scheduleScan();
   } catch(e) {
-    showAlert('無法開啟相機：' + e.message, 'error');
+    // fallback：降規重試
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
+      const video = document.getElementById('video');
+      video.srcObject = stream;
+      await new Promise(res => { video.onloadedmetadata = () => { video.play(); res(); }; });
+      document.getElementById('scannerPlaceholder').style.display = 'none';
+      document.getElementById('scanOverlay').style.display = 'flex';
+      document.getElementById('btnCamera').textContent = '關閉相機';
+      document.getElementById('btnSwitch').style.display = 'inline-flex';
+      scanning = true;
+      scheduleScan();
+    } catch(e2) {
+      showAlert('無法開啟相機：' + e2.message, 'error');
+    }
   }
 }
 
 function stopCamera() {
-  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
   scanning = false;
-  document.getElementById('video').srcObject = null;
+  if (scanTimer) { clearTimeout(scanTimer); scanTimer = null; }
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  const video = document.getElementById('video');
+  video.srcObject = null;
   document.getElementById('scannerPlaceholder').style.display = 'flex';
   document.getElementById('scanOverlay').style.display = 'none';
   document.getElementById('btnCamera').textContent = '開啟相機';
@@ -820,30 +848,46 @@ function stopCamera() {
 async function switchCamera() {
   facingMode = facingMode === 'environment' ? 'user' : 'environment';
   stopCamera();
+  await new Promise(r => setTimeout(r, 300)); // 短暫等待讓舊stream完全釋放
   await toggleCamera();
+}
+
+// 用 setTimeout 而非 rAF，避免手機背景throttle
+function scheduleScan() {
+  if (!scanning) return;
+  scanTimer = setTimeout(() => {
+    scanFrame();
+    scheduleScan();
+  }, 150); // 約6-7fps，足夠掃QR又不耗電
 }
 
 function scanFrame() {
   if (!scanning) return;
   const video = document.getElementById('video');
   const canvas = document.getElementById('canvas');
-  if (video.readyState === video.HAVE_ENOUGH_DATA) {
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
-    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'dontInvert' });
-    if (code) {
-      const now = Date.now();
-      if (code.data !== lastScanned || now - lastScannedTime > 3000) {
-        lastScanned = code.data;
+
+  if (video.readyState !== video.HAVE_ENOUGH_DATA || video.videoWidth === 0) return;
+
+  // 保留原始解析度，不壓縮
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  canvas.width  = vw;
+  canvas.height = vh;
+
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(video, 0, 0, vw, vh);
+  const imgData = ctx.getImageData(0, 0, vw, vh);
+
+  // attemptBoth：同時嘗試正色和反色，最大相容性
+  const code = jsQR(imgData.data, vw, vh, { inversionAttempts: 'attemptBoth' });
+  if (code) {
+    const now = Date.now();
+    if (code.data !== lastScanned || now - lastScannedTime > 3000) {
+      lastScanned = code.data;
         lastScannedTime = now;
         handleScan(code.data);
       }
     }
-  }
-  requestAnimationFrame(scanFrame);
 }
 
 // ===== SCAN HANDLER =====
