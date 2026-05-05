@@ -965,8 +965,8 @@ const FIELD_MAP = {
   orderTime:  { label: '訂單時間',                          key: '' },
   amount:     { label: '訂單總額',                          key: '' },
   paidAmt:    { label: '實付金額 ★',                       key: '' },
-  buyer:      { label: '訂購人／會員代號欄',                key: '' },
-  memberName: { label: '會員姓名（收件人 / 訂購人）',       key: '' },
+  buyer:      { label: '訂購人 ★（主要顯示名稱）',          key: '' },
+  memberName: { label: '會員姓名（收件人，備援）',            key: '' },
   phone1:     { label: '聯絡電話',                                  key: '' },
   phone2:     { label: '行動電話',                                  key: '' },
   address:    { label: '地址 🗺（自動推算地區）',           key: '' },
@@ -983,8 +983,8 @@ const AUTO_HINTS = {
   orderTime:  { exact: ['訂單時間'],   partial: ['時間','date','time'] },
   amount:     { exact: ['訂單總額'],   partial: ['總額','total'] },
   paidAmt:    { exact: ['實付金額'],   partial: ['實付','付款金額','實際付款','應付金額','paid'] },
-  buyer:      { exact: ['會員代號'],   partial: ['訂購人','購買人','buyer','member'] },
-  memberName: { exact: ['收件人'],     partial: ['姓名','會員姓名','membername','name'] },
+  buyer:      { exact: ['訂購人','會員代號'],  partial: ['購買人','buyer','member'] },
+  memberName: { exact: ['收件人'],             partial: ['姓名','會員姓名','membername','name'] },
   phone1:     { exact: ['聯絡電話','聯絡電話(手機)','聯絡電話(市話)','電話','聯絡電話(市話/手機)'], partial: ['聯絡','phone','tel','contact'] },
   phone2:     { exact: ['行動電話','手機電話','行動','mobile'],                                   partial: ['行動','手機','mobile','cellphone'] },
   address:    { exact: ['地址'],       partial: ['收件地址','address','addr'] },
@@ -1428,6 +1428,7 @@ function applyGenderMapping() {
   }
 
   GENDER_MAP = {}; GENDER_NAME_MAP = {}; MEMBER_INFO_MAP = {};
+  let GENDER_NAME_UID_MAP = {};  // normName → uid（讓名字查詢可回溯到 UID）
   let cUid = 0, cName = 0;
 
   const clean = v => (v || '').replace(/^'+|'+$/g, '').trim();
@@ -1442,15 +1443,26 @@ function applyGenderMapping() {
     if (g) {
       if (uid) { GENDER_MAP[uid] = g; cUid++; }
       if (name) {
-        // ✅ 同時用原始名稱與正規化名稱建立索引，兩者都能命中
+        // 原始名稱 + 正規化名稱都建索引
         GENDER_NAME_MAP[name] = g;
         const norm = normName(name);
         if (norm && norm !== name) GENDER_NAME_MAP[norm] = g;
+
+        // ✅ 若此筆有 UID，同時記錄 normName → uid 的反查表
+        // 遇到重複名字時，有 UID 的優先（不覆蓋已有 UID 的記錄）
+        if (uid) {
+          if (!GENDER_NAME_UID_MAP[norm] || !GENDER_NAME_UID_MAP[norm].uid) {
+            GENDER_NAME_UID_MAP[norm] = { uid, g };
+          }
+          if (!GENDER_NAME_UID_MAP[name] || !GENDER_NAME_UID_MAP[name].uid) {
+            GENDER_NAME_UID_MAP[name] = { uid, g };
+          }
+        }
         cName++;
       }
     }
 
-    // ✅ 補充聯絡資訊（'0' 是寬雲空值佔位符，跳過）
+    // 補充聯絡資訊
     if (uid) {
       const p1 = p1Idx >= 0 ? clean(cols[p1Idx]) : '';
       const p2 = p2Idx >= 0 ? clean(cols[p2Idx]) : '';
@@ -1462,6 +1474,9 @@ function applyGenderMapping() {
       };
     }
   });
+
+  // ✅ 把反查表掛到全域，供 getMemberGender 使用
+  window._GENDER_NAME_UID_MAP = GENDER_NAME_UID_MAP;
 
   if (!cUid && !cName) {
     alert('套用失敗：未讀取到有效性別資料。\n請確認性別欄的值為 F / M / 女 / 男。');
@@ -1500,14 +1515,23 @@ function normName(n) {
 }
 
 function getMemberGender(m) {
-  // ① UID 比對
+  const nameUidMap = window._GENDER_NAME_UID_MAP || {};
+
+  // ① 自身 UID 直接比對（最優先）
   if (m.uid && GENDER_MAP[m.uid]) return { g: GENDER_MAP[m.uid], method: 'uid' };
-  // ② 姓名完整比對
-  if (m.name && GENDER_NAME_MAP[m.name]) return { g: GENDER_NAME_MAP[m.name], method: 'name' };
-  // ③ 姓名正規化比對（去除末尾符號後再比對）
-  const norm = normName(m.name);
-  if (norm && GENDER_NAME_MAP[norm]) return { g: GENDER_NAME_MAP[norm], method: 'name' };
-  return { g: null, method: null };
+
+  // ② 姓名比對：若名字對應表中有 UID，以該 UID 的性別為準（A欄優先）
+  const tryName = (key) => {
+    if (!key) return null;
+    const byUid = nameUidMap[key];
+    if (byUid) return { g: byUid.g, method: 'uid' };          // 有 UID 的名字優先
+    if (GENDER_NAME_MAP[key]) return { g: GENDER_NAME_MAP[key], method: 'name' };
+    return null;
+  };
+
+  return tryName(m.name)
+      || tryName(normName(m.name))
+      || { g: null, method: null };
 }
 
 function updateGenderStats() {
@@ -1586,7 +1610,13 @@ function processData() {
     if (!orderMap[dedupeKey]) {
       const buyerRaw = row[f.buyer] || '';
       const { name: pName, uid: pUid } = parseBuyer(buyerRaw);
-      const mName = f.memberName ? (row[f.memberName] || '') : '';
+      const mName = f.memberName ? (row[f.memberName] || '').trim() : '';
+
+      // ✅ 訂購人優先：若訂購人欄包含文字名稱則用之，否則退用收件人
+      // parseBuyer 解析「林春櫻(37120)」→ pName='林春櫻' uid='37120'
+      // 若訂購人欄是純數字（UID）則 pName 為空，改用收件人
+      const displayName = pName || mName || buyerRaw;
+
       const addr  = (f.address && row[f.address]) ? row[f.address]
                   : row['地址'] || row['收件地址'] || '';
 
@@ -1594,7 +1624,7 @@ function processData() {
         orderNo,
         time:     f.orderTime ? row[f.orderTime] : '',
         amount:   amt,
-        name:     mName.trim() || pName || buyerRaw,
+        name:     displayName,
         uid:      pUid || (/^\d+$/.test(buyerRaw.trim()) ? buyerRaw.trim() : ''),
         address:  addr.trim(),
         region:   addrToRegion(addr),
@@ -2135,7 +2165,7 @@ function exportFiltered() {
     .sort((a,b) => b.totalAmount - a.totalAmount)
     .forEach((m, i) => rankMap[m.uid||m.name] = i+1);
 
-  const hdrs = ['排名','會員姓名','會員代號','性別','比對方式','地區',
+  const hdrs = ['排名','會員姓名','會員編號','性別','比對方式','地區',
                 '聯絡電話','行動電話','地址','訂單筆數','消費總金額','訂單清單','購買品項'];
 
   const rows = sorted.map(m => {
