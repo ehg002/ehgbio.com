@@ -1440,8 +1440,14 @@ function applyGenderMapping() {
     const g    = /^(F|女|FEMALE)$/.test(raw) ? 'F' : /^(M|男|MALE)$/.test(raw) ? 'M' : null;
 
     if (g) {
-      if (uid)  { GENDER_MAP[uid]       = g; cUid++;  }
-      if (name) { GENDER_NAME_MAP[name] = g; cName++; }
+      if (uid) { GENDER_MAP[uid] = g; cUid++; }
+      if (name) {
+        // ✅ 同時用原始名稱與正規化名稱建立索引，兩者都能命中
+        GENDER_NAME_MAP[name] = g;
+        const norm = normName(name);
+        if (norm && norm !== name) GENDER_NAME_MAP[norm] = g;
+        cName++;
+      }
     }
 
     // ✅ 補充聯絡資訊（'0' 是寬雲空值佔位符，跳過）
@@ -1485,9 +1491,22 @@ function applyGenderMapping() {
   }
 }
 
+// ✅ 名字正規化：去除末尾 -、_、空白、括號及其內容
+function normName(n) {
+  return (n || '').trim()
+    .replace(/[-_\s]+$/, '')          // 去除末尾 - _ 空白
+    .replace(/[（(][^）)]*[）)]$/, '') // 去除末尾括號內容，如「林春櫻(2)」
+    .trim();
+}
+
 function getMemberGender(m) {
-  if (m.uid  && GENDER_MAP[m.uid])       return { g: GENDER_MAP[m.uid],       method: 'uid'  };
+  // ① UID 比對
+  if (m.uid && GENDER_MAP[m.uid]) return { g: GENDER_MAP[m.uid], method: 'uid' };
+  // ② 姓名完整比對
   if (m.name && GENDER_NAME_MAP[m.name]) return { g: GENDER_NAME_MAP[m.name], method: 'name' };
+  // ③ 姓名正規化比對（去除末尾符號後再比對）
+  const norm = normName(m.name);
+  if (norm && GENDER_NAME_MAP[norm]) return { g: GENDER_NAME_MAP[norm], method: 'name' };
   return { g: null, method: null };
 }
 
