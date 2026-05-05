@@ -1060,9 +1060,6 @@ function renderInventory() {
   const nameCount = {};
   rows.forEach(p => { nameCount[p.name] = (nameCount[p.name] || 0) + 1; });
 
-  const BORDER = '2px solid rgba(0,229,255,0.55)';
-  const NONE   = '1px solid transparent';
-
   body.innerHTML = rows.map((p, i) => {
     const sp = p.stockPublic || 0;
     const cls    = p.stock === 0 ? 'stock-low' : p.stock <= p.lowAlert ? 'stock-warn' : 'stock-ok';
@@ -1075,44 +1072,28 @@ function renderInventory() {
       if (days < 180) expCls = 'stock-warn';
       if (days < 0)   expCls = 'stock-low';
     }
-
-    const isFirst = nameFirstIdx[p.name] === i;
-    const isLast  = nameFirstIdx[p.name] + nameCount[p.name] - 1 === i;
-    const isSingle = nameCount[p.name] === 1;
-    const hasGroup = nameCount[p.name] > 1;
-
-    // 群組框線：每個 td 自己處理左右邊，tr 處理上下
-    const bTop    = isFirst ? BORDER : NONE;
-    const bBottom = isLast  ? BORDER : NONE;
-    // 只有多批號才加左右框
-    const bLeft  = hasGroup ? BORDER : 'none';
-    const bRight = 'none'; // 右側由品名小計欄自己處理
-
-    // td 共用樣式：上下邊只在首尾顯示
-    const tdTop    = isFirst ? `border-top:${BORDER};` : 'border-top:1px solid transparent;';
-    const tdBot    = isLast  ? `border-bottom:${BORDER};` : 'border-bottom:1px solid transparent;';
-    const tdLeft   = hasGroup ? `border-left:${BORDER};` : '';
-    const cellBase = `${tdTop}${tdBot}${tdLeft}`;
-
-    // 品名小計欄（rowspan，只在 isFirst 出現）
     let totalCell = '';
-    if (isFirst) {
+    if (nameFirstIdx[p.name] === i) {
       const span = nameCount[p.name];
       const tot  = nameTotal[p.name];
-      totalCell = `<td rowspan="${span}" style="font-family:var(--mono);font-size:18px;font-weight:bold;color:var(--yellow);text-align:center;vertical-align:middle;border:${BORDER};border-left:2px solid rgba(0,229,255,0.2);background:rgba(0,229,255,0.05)">${tot}</td>`;
+      totalCell = `<td rowspan="${span}" style="font-family:var(--mono);font-size:18px;font-weight:bold;color:var(--yellow);text-align:center;vertical-align:middle;border-left:3px solid var(--accent);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);border-right:3px solid var(--accent);background:rgba(0,229,255,0.04)">${tot}</td>`;
     }
-
-    return `<tr>
-      <td style="${cellBase}font-family:var(--mono);font-size:11px;color:var(--accent)">${p.id}</td>
-      <td style="${cellBase}font-weight:500">${p.name}</td>
-      <td style="${cellBase}font-family:var(--mono);font-size:12px;color:var(--text-dim)">${p.spec||'─'}</td>
-      <td style="${cellBase}color:var(--text-dim)">${p.category||'─'}</td>
-      <td class="${expCls}" style="${cellBase}font-family:var(--mono);font-size:12px">${expFmt}</td>
-      <td class="${cls}"  style="${cellBase}font-family:var(--mono);font-size:16px">${p.stock}</td>
-      <td class="${clsPub}" style="${cellBase}border-right:${hasGroup?BORDER:'none'};font-family:var(--mono);font-size:16px;color:var(--text-dim)">${sp}</td>
+    const isGroupFirst = nameFirstIdx[p.name] === i;
+    const isGroupLast  = nameFirstIdx[p.name] + nameCount[p.name] - 1 === i;
+    const groupBorderTop    = isGroupFirst ? 'border-top:2px solid rgba(0,229,255,0.25);' : '';
+    const groupBorderBottom = isGroupLast  ? 'border-bottom:2px solid rgba(0,229,255,0.25);' : '';
+    const rowStyle = `${groupBorderTop}${groupBorderBottom}`;
+    return `<tr style="${rowStyle}">
+      <td style="font-family:var(--mono);font-size:11px;color:var(--accent)">${p.id}</td>
+      <td style="font-weight:500">${p.name}</td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">${p.spec||'─'}</td>
+      <td style="color:var(--text-dim)">${p.category||'─'}</td>
+      <td class="${expCls}" style="font-family:var(--mono);font-size:12px">${expFmt}</td>
+      <td class="${cls}"  style="font-family:var(--mono);font-size:16px">${p.stock}</td>
+      <td class="${clsPub}" style="font-family:var(--mono);font-size:16px;color:var(--text-dim)">${sp}</td>
       ${totalCell}
-      <td class="${cls}" style="${tdTop}${tdBot}">${warn}</td>
-      <td style="${tdTop}${tdBot}"><button class="btn btn-primary btn-sm" onclick="showQR('${p.id}')">QR</button></td>
+      <td class="${cls}">${warn}</td>
+      <td><button class="btn btn-primary btn-sm" onclick="showQR('${p.id}')">QR</button></td>
     </tr>`;
   }).join('');
 }
