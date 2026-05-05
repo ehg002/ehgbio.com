@@ -1,0 +1,1173 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>庫存掃碼系統</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
+
+  :root {
+    --bg: #0a0c0f;
+    --surface: #111418;
+    --surface2: #181c22;
+    --border: #1e2530;
+    --accent: #00e5ff;
+    --accent2: #ff6b35;
+    --green: #00ff88;
+    --red: #ff3355;
+    --yellow: #ffd700;
+    --text: #e0e8f0;
+    --text-dim: #5a6a7a;
+    --mono: 'Share Tech Mono', monospace;
+    --sans: 'Noto Sans TC', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Header */
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px; height: 36px;
+    border: 2px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono);
+    color: var(--accent);
+    font-size: 14px;
+    position: relative;
+  }
+  .logo-icon::before, .logo-icon::after {
+    content: '';
+    position: absolute;
+    width: 6px; height: 6px;
+    border-color: var(--accent);
+    border-style: solid;
+  }
+  .logo-icon::before { top: -2px; left: -2px; border-width: 2px 0 0 2px; }
+  .logo-icon::after  { bottom: -2px; right: -2px; border-width: 0 2px 2px 0; }
+
+  .logo-text { font-family: var(--mono); font-size: 18px; letter-spacing: 2px; color: var(--accent); }
+  .logo-sub  { font-size: 11px; color: var(--text-dim); letter-spacing: 1px; }
+
+  .header-status {
+    display: flex; align-items: center; gap: 8px;
+    font-family: var(--mono); font-size: 12px; color: var(--text-dim);
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* Nav tabs */
+  nav {
+    position: relative; z-index: 10;
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    overflow-x: auto;
+  }
+
+  .tab {
+    padding: 12px 20px;
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    transition: all .2s;
+    user-select: none;
+  }
+  .tab:hover { color: var(--text); background: rgba(0,229,255,.04); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  /* Main */
+  main {
+    position: relative; z-index: 1;
+    padding: 20px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .card-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Scanner */
+  .scanner-wrap {
+    position: relative;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    aspect-ratio: 4/3;
+    max-height: 320px;
+  }
+
+  #video {
+    width: 100%; height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  .scan-overlay {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    pointer-events: none;
+  }
+
+  .scan-frame {
+    width: 160px; height: 160px;
+    position: relative;
+  }
+  .scan-frame::before, .scan-frame::after,
+  .scan-frame span::before, .scan-frame span::after {
+    content: '';
+    position: absolute;
+    width: 24px; height: 24px;
+    border-color: var(--accent);
+    border-style: solid;
+  }
+  .scan-frame::before { top: 0; left: 0; border-width: 2px 0 0 2px; }
+  .scan-frame::after  { top: 0; right: 0; border-width: 2px 2px 0 0; }
+  .scan-frame span::before { bottom: 0; left: 0; border-width: 0 0 2px 2px; }
+  .scan-frame span::after  { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+  .scan-line {
+    position: absolute;
+    left: 4px; right: 4px; height: 2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    top: 4px;
+    animation: scanLine 2s ease-in-out infinite;
+    box-shadow: 0 0 8px var(--accent);
+  }
+  @keyframes scanLine {
+    0%   { top: 4px; }
+    50%  { top: calc(100% - 6px); }
+    100% { top: 4px; }
+  }
+
+  .scanner-placeholder {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 12px;
+    background: #000;
+  }
+  .scanner-placeholder svg { opacity: .3; }
+  .scanner-placeholder p { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 10px 20px;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 1px;
+    border: 1px solid;
+    cursor: pointer;
+    transition: all .2s;
+    border-radius: 2px;
+    text-transform: uppercase;
+    background: transparent;
+  }
+  .btn-primary { border-color: var(--accent); color: var(--accent); }
+  .btn-primary:hover { background: var(--accent); color: #000; }
+  .btn-green { border-color: var(--green); color: var(--green); }
+  .btn-green:hover { background: var(--green); color: #000; }
+  .btn-red { border-color: var(--red); color: var(--red); }
+  .btn-red:hover { background: var(--red); color: #fff; }
+  .btn-sm { padding: 6px 12px; font-size: 11px; }
+  .btn:disabled { opacity: .3; cursor: not-allowed; }
+
+  /* Mode buttons */
+  .mode-btns { display: flex; gap: 8px; margin-bottom: 16px; }
+  .mode-btn {
+    flex: 1; padding: 10px; text-align: center;
+    font-family: var(--mono); font-size: 12px; letter-spacing: 1px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+    transition: all .2s;
+    color: var(--text-dim);
+    background: var(--surface2);
+    border-radius: 2px;
+  }
+  .mode-btn.in  { border-color: var(--green); color: var(--green); }
+  .mode-btn.out { border-color: var(--red);   color: var(--red); }
+
+  /* Result display */
+  .scan-result {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 16px;
+    margin-bottom: 16px;
+    display: none;
+  }
+  .scan-result.show { display: block; }
+
+  .result-id {
+    font-family: var(--mono);
+    font-size: 20px;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .result-name {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 8px;
+  }
+  .result-stock {
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .result-stock span { color: var(--yellow); font-size: 18px; }
+
+  /* Qty input */
+  .qty-row {
+    display: flex; align-items: center; gap: 12px;
+    margin: 12px 0;
+  }
+  .qty-input {
+    width: 80px; padding: 8px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 18px;
+    text-align: center;
+    border-radius: 2px;
+  }
+  .qty-input:focus { outline: none; border-color: var(--accent); }
+  .qty-label { font-family: var(--mono); font-size: 12px; color: var(--text-dim); }
+
+  /* Form inputs */
+  .form-group { margin-bottom: 14px; }
+  label { display: block; font-family: var(--mono); font-size: 11px; color: var(--text-dim); letter-spacing: 1px; margin-bottom: 6px; }
+  input[type=text], input[type=number], select, textarea {
+    width: 100%; padding: 9px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    border-radius: 2px;
+    transition: border-color .2s;
+  }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  select { cursor: pointer; }
+
+  /* KPI cards */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    padding: 16px;
+    border-radius: 2px;
+  }
+  .kpi-label { font-family: var(--mono); font-size: 10px; color: var(--text-dim); letter-spacing: 1px; margin-bottom: 8px; }
+  .kpi-value { font-family: var(--mono); font-size: 28px; color: var(--accent); }
+  .kpi-value.green { color: var(--green); }
+  .kpi-value.red   { color: var(--red); }
+  .kpi-value.yellow { color: var(--yellow); }
+
+  /* Table */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+    color: var(--text-dim); text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: rgba(0,229,255,.03); }
+
+  .badge {
+    display: inline-flex; align-items: center;
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-family: var(--mono); font-size: 11px;
+    border: 1px solid;
+  }
+  .badge-in  { color: var(--green); border-color: var(--green); background: rgba(0,255,136,.08); }
+  .badge-out { color: var(--red);   border-color: var(--red);   background: rgba(255,51,85,.08); }
+
+  .stock-low  { color: var(--red); }
+  .stock-ok   { color: var(--green); }
+  .stock-warn { color: var(--yellow); }
+
+  /* Alert */
+  .alert {
+    padding: 12px 16px;
+    border-radius: 2px;
+    font-family: var(--mono); font-size: 12px;
+    margin-bottom: 12px;
+    display: none;
+  }
+  .alert.show { display: block; }
+  .alert-success { background: rgba(0,255,136,.1); border: 1px solid var(--green); color: var(--green); }
+  .alert-error   { background: rgba(255,51,85,.1);  border: 1px solid var(--red);  color: var(--red); }
+
+  /* QR display */
+  .qr-box {
+    display: inline-flex; flex-direction: column; align-items: center;
+    background: #fff;
+    padding: 12px;
+    border-radius: 2px;
+    gap: 8px;
+  }
+  .qr-box p {
+    color: #000;
+    font-family: var(--mono);
+    font-size: 11px;
+    text-align: center;
+  }
+
+  /* Search */
+  .search-row {
+    display: flex; gap: 8px; margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .search-row input { flex: 1; min-width: 180px; }
+
+  /* Empty */
+  .empty {
+    text-align: center;
+    padding: 40px;
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+
+  /* Flash animation */
+  @keyframes flashIn {
+    0%  { background: rgba(0,229,255,.2); }
+    100%{ background: transparent; }
+  }
+  .flash { animation: flashIn .6s ease-out; }
+
+  /* Manual input toggle */
+  .manual-toggle {
+    font-family: var(--mono); font-size: 11px;
+    color: var(--text-dim);
+    text-align: center;
+    cursor: pointer;
+    padding: 8px;
+    text-decoration: underline;
+    margin-bottom: 8px;
+  }
+  .manual-toggle:hover { color: var(--accent); }
+
+  .manual-input {
+    display: none;
+    margin-bottom: 12px;
+  }
+  .manual-input.show { display: flex; gap: 8px; }
+
+  /* Responsive */
+  @media (max-width: 600px) {
+    main { padding: 12px; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">QR</div>
+    <div>
+      <div class="logo-text">STOCK·OS</div>
+      <div class="logo-sub">庫存掃碼管理系統 · DEMO</div>
+    </div>
+  </div>
+  <div class="header-status">
+    <div class="status-dot"></div>
+    <span id="headerTime"></span>
+  </div>
+</header>
+
+<nav>
+  <div class="tab active" data-page="scan">⊙ 掃碼出入庫</div>
+  <div class="tab" data-page="inventory">≡ 庫存總覽</div>
+  <div class="tab" data-page="history">≔ 出入庫紀錄</div>
+  <div class="tab" data-page="products">＋ 商品管理</div>
+</nav>
+
+<main>
+
+  <!-- ===== 掃碼出入庫 ===== -->
+  <div class="page active" id="page-scan">
+
+    <div class="mode-btns">
+      <div class="mode-btn in active" id="modeIn" onclick="setMode('in')">▲ 入　庫</div>
+      <div class="mode-btn out" id="modeOut" onclick="setMode('out')">▼ 出　庫</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">相機掃碼</div>
+      <div class="scanner-wrap" id="scannerWrap">
+        <video id="video" autoplay playsinline muted></video>
+        <div class="scan-overlay" id="scanOverlay">
+          <div class="scan-frame">
+            <span></span>
+            <div class="scan-line"></div>
+          </div>
+        </div>
+        <div class="scanner-placeholder" id="scannerPlaceholder">
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="4" height="4"/>
+          </svg>
+          <p>點擊「開啟相機」開始掃描</p>
+        </div>
+        <canvas id="canvas" style="display:none"></canvas>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-primary" id="btnCamera" onclick="toggleCamera()">開啟相機</button>
+        <button class="btn btn-primary btn-sm" onclick="switchCamera()" id="btnSwitch" style="display:none">切換鏡頭</button>
+      </div>
+    </div>
+
+    <div class="manual-toggle" onclick="toggleManual()">▸ 手動輸入商品編號</div>
+    <div class="manual-input" id="manualInput">
+      <input type="text" id="manualCode" placeholder="輸入商品編號..." style="flex:1">
+      <button class="btn btn-primary btn-sm" onclick="manualSearch()">查詢</button>
+    </div>
+
+    <div id="alertBox" class="alert"></div>
+
+    <div class="scan-result" id="scanResult">
+      <div class="result-id" id="resultId"></div>
+      <div class="result-name" id="resultName"></div>
+      <div class="result-stock">目前庫存：<span id="resultStock"></span> 件</div>
+      <div class="qty-row">
+        <input type="number" class="qty-input" id="qtyInput" value="1" min="1">
+        <div class="qty-label">件</div>
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn btn-green" id="confirmBtn" onclick="confirmAction()">確認登記</button>
+        <button class="btn btn-sm" style="border-color:var(--border);color:var(--text-dim)" onclick="clearResult()">取消</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ===== 庫存總覽 ===== -->
+  <div class="page" id="page-inventory">
+    <div class="kpi-grid" id="kpiGrid"></div>
+    <div class="card">
+      <div class="card-title">庫存清單</div>
+      <div class="search-row">
+        <input type="text" id="invSearch" placeholder="搜尋商品名稱或編號..." oninput="renderInventory()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>批號（QR）</th><th>產品名稱</th><th>規格</th><th>類別</th>
+              <th>有效日期</th><th>古典庫存</th><th>大眾庫存</th><th>品名小計</th><th>警示</th><th>QR</th>
+            </tr>
+          </thead>
+          <tbody id="invBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 歷史紀錄 ===== -->
+  <div class="page" id="page-history">
+    <div class="card">
+      <div class="card-title">出入庫紀錄</div>
+      <div class="search-row">
+        <input type="text" id="histSearch" placeholder="搜尋商品名稱或編號..." oninput="renderHistory()">
+        <select id="histType" onchange="renderHistory()">
+          <option value="">全部類型</option>
+          <option value="in">入庫</option>
+          <option value="out">出庫</option>
+        </select>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>時間</th><th>商品編號</th><th>商品名稱</th><th>類型</th><th>數量</th><th>備註</th></tr>
+          </thead>
+          <tbody id="histBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 商品管理 ===== -->
+  <div class="page" id="page-products">
+    <div class="card">
+      <div class="card-title">新增批號商品</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+        <div class="form-group">
+          <label>批號（QR Code內容）*</label>
+          <input type="text" id="pId" placeholder="例：FSA251220">
+        </div>
+        <div class="form-group">
+          <label>產品名稱 *</label>
+          <input type="text" id="pName" placeholder="例：古典關健">
+        </div>
+        <div class="form-group">
+          <label>規格</label>
+          <input type="text" id="pSpec" placeholder="例：540錠">
+        </div>
+        <div class="form-group">
+          <label>類別</label>
+          <input type="text" id="pCat" placeholder="例：關節保健">
+        </div>
+        <div class="form-group">
+          <label>古典庫存</label>
+          <input type="number" id="pStock" value="0" min="0">
+        </div>
+        <div class="form-group">
+          <label>大眾庫存</label>
+          <input type="number" id="pStockPublic" value="0" min="0">
+        </div>
+        <div class="form-group">
+          <label>有效日期（YYYYMMDD）</label>
+          <input type="text" id="pExpiry" placeholder="例：20290101">
+        </div>
+        <div class="form-group">
+          <label>低庫存警示值</label>
+          <input type="number" id="pLow" value="10" min="0">
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="addProduct()">新增批號 + 產生QR Code</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">批號列表</div>
+      <div class="search-row">
+        <input type="text" id="prodSearch" placeholder="搜尋批號或產品名稱..." oninput="renderProducts()">
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>批號</th><th>名稱</th><th>規格</th><th>有效日期</th><th>古典庫存</th><th>大眾庫存</th><th>警示值</th><th>操作</th></tr>
+          </thead>
+          <tbody id="prodBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- QR Modal -->
+    <div id="qrModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.8); z-index:100; display:none; align-items:center; justify-content:center;">
+      <div style="background:var(--surface); border:1px solid var(--border); padding:28px; text-align:center; min-width:240px;">
+        <div class="card-title" style="justify-content:center; margin-bottom:20px;">QR CODE</div>
+        <div id="qrDisplay" style="margin-bottom:16px;"></div>
+        <div id="qrProdInfo" style="font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-bottom:16px;"></div>
+        <button class="btn btn-primary btn-sm" onclick="printQR()">列印</button>
+        <button class="btn btn-sm" style="border-color:var(--border);color:var(--text-dim);margin-left:8px;" onclick="closeQrModal()">關閉</button>
+      </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.85); z-index:100; align-items:center; justify-content:center; padding:16px;">
+      <div style="background:var(--surface); border:1px solid var(--border); padding:28px; width:100%; max-width:480px; border-radius:2px;">
+        <div class="card-title" style="margin-bottom:20px;">編輯批號資料</div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+          <div class="form-group" style="grid-column:1/-1;">
+            <label>批號（不可修改）</label>
+            <input type="text" id="editId" disabled style="opacity:.4; cursor:not-allowed;">
+          </div>
+          <div class="form-group">
+            <label>產品名稱 *</label>
+            <input type="text" id="editName" placeholder="產品名稱">
+          </div>
+          <div class="form-group">
+            <label>規格</label>
+            <input type="text" id="editSpec" placeholder="例：540錠">
+          </div>
+          <div class="form-group">
+            <label>類別</label>
+            <input type="text" id="editCat" placeholder="例：關節保健">
+          </div>
+          <div class="form-group">
+            <label>有效日期（YYYYMMDD）</label>
+            <input type="text" id="editExpiry" placeholder="例：20290101">
+          </div>
+          <div class="form-group">
+            <label>古典庫存</label>
+            <input type="number" id="editStock" min="0" step="0.5">
+          </div>
+          <div class="form-group">
+            <label>大眾庫存</label>
+            <input type="number" id="editStockPublic" min="0" step="0.5">
+          </div>
+          <div class="form-group">
+            <label>低庫存警示值</label>
+            <input type="number" id="editLow" min="0">
+          </div>
+        </div>
+
+        <div id="editAlert" class="alert" style="margin-top:8px;"></div>
+
+        <div style="display:flex; gap:8px; margin-top:16px; flex-wrap:wrap;">
+          <button class="btn btn-green" onclick="saveEdit()">✓ 儲存變更</button>
+          <button class="btn btn-sm" style="border-color:var(--border);color:var(--text-dim);" onclick="closeEdit()">取消</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ===== STATE =====
+let products = JSON.parse(localStorage.getItem('stockos_products') || '[]');
+let history  = JSON.parse(localStorage.getItem('stockos_history')  || '[]');
+let scanMode = 'in';
+let currentProduct = null;
+let stream = null;
+let scanning = false;
+let facingMode = 'environment';
+let lastScanned = '';
+let lastScannedTime = 0;
+
+// ===== SEED DATA =====
+const SEED_VERSION = '20260504c';
+if (products.length === 0 || localStorage.getItem('stockos_seed_ver') !== SEED_VERSION) {
+  products = [
+    { id:'FSA251220',  name:'古典關健',         spec:'540錠',    category:'關節保健', stock:51,  stockPublic:94,  expiry:'20290101', lowAlert:20 },
+    { id:'FSA260112',  name:'古典關健',         spec:'540錠',    category:'關節保健', stock:133, stockPublic:0,   expiry:'20290202', lowAlert:20 },
+    { id:'FSA260401',  name:'古典關健',         spec:'540錠',    category:'關節保健', stock:127, stockPublic:0,   expiry:'20290409', lowAlert:20 },
+    { id:'FSA260402',  name:'古典關健',         spec:'540錠',    category:'關節保健', stock:134, stockPublic:0,   expiry:'20290414', lowAlert:20 },
+    { id:'FSA250906',  name:'素關健',           spec:'270錠',    category:'關節保健', stock:32,  stockPublic:58,  expiry:'20280925', lowAlert:15 },
+    { id:'FSA251105',  name:'古典晶華',         spec:'450錠',    category:'眼睛保健', stock:49,  stockPublic:96,  expiry:'20281113', lowAlert:20 },
+    { id:'FSA251106',  name:'古典晶華',         spec:'450錠',    category:'眼睛保健', stock:142, stockPublic:0,   expiry:'20281119', lowAlert:20 },
+    { id:'FSA250324',  name:'素晶華',           spec:'450錠',    category:'美容保健', stock:8,   stockPublic:44,  expiry:'20280330', lowAlert:15 },
+    { id:'FSA251219',  name:'王者之健',         spec:'450錠',    category:'男性保健', stock:116, stockPublic:98,  expiry:'20281225', lowAlert:20 },
+    { id:'FSA260302',  name:'王者之健',         spec:'450錠',    category:'男性保健', stock:124, stockPublic:0,   expiry:'20290326', lowAlert:20 },
+    { id:'FSA251218',  name:'貴妃珍寶',         spec:'450錠',    category:'美容保健', stock:136, stockPublic:59,  expiry:'20281217', lowAlert:20 },
+    { id:'FSA250909',  name:'珍珠元氣美人錠',   spec:'450錠',    category:'美容保健', stock:34,  stockPublic:115, expiry:'20280930', lowAlert:20 },
+    { id:'FSA251011',  name:'珍珠元氣美人錠',   spec:'450錠',    category:'美容保健', stock:149, stockPublic:0,   expiry:'20281022', lowAlert:20 },
+    { id:'FSS250905',  name:'頂級珍珠粉',       spec:'60入',     category:'美容保健', stock:47,  stockPublic:29,  expiry:'20280422', lowAlert:10 },
+    { id:'FSG251217',  name:'經舒熱飲',         spec:'9入',      category:'女性保健', stock:288, stockPublic:156, expiry:'20281222', lowAlert:30 },
+    { id:'FSA241201',  name:'無敏樂',           spec:'225錠',    category:'過敏保健', stock:11,  stockPublic:34,  expiry:'20271202', lowAlert:15 },
+    { id:'FSA260111',  name:'無敏樂',           spec:'225錠',    category:'過敏保健', stock:242, stockPublic:0,   expiry:'20290128', lowAlert:15 },
+    { id:'FSA250714',  name:'優視學',           spec:'240錠',    category:'眼睛保健', stock:52,  stockPublic:149, expiry:'20280113', lowAlert:15 },
+    { id:'FSG250809',  name:'小強身',           spec:'1G',       category:'兒童保健', stock:37,  stockPublic:50,  expiry:'20281012', lowAlert:10 },
+    { id:'FSG250609',  name:'小強身',           spec:'2G',       category:'兒童保健', stock:29,  stockPublic:38,  expiry:'20281012', lowAlert:10 },
+    { id:'FSG240413',  name:'小強身',           spec:'3G',       category:'兒童保健', stock:29,  stockPublic:15,  expiry:'20270507', lowAlert:10 },
+    { id:'FSA230909',  name:'成長精華-男青春前期', spec:'135錠', category:'成長保健', stock:32,  stockPublic:49,  expiry:'20261001', lowAlert:10 },
+    { id:'FSA241103',  name:'成長精華-男青春期',   spec:'135錠', category:'成長保健', stock:0,   stockPublic:59,  expiry:'20271104', lowAlert:10 },
+    { id:'FSA241107',  name:'成長精華-女青春前期', spec:'135錠', category:'成長保健', stock:59,  stockPublic:60,  expiry:'20271110', lowAlert:10 },
+    { id:'FSA250318',  name:'成長精華-女青春期',   spec:'135錠', category:'成長保健', stock:88,  stockPublic:98,  expiry:'20280319', lowAlert:10 },
+    { id:'FSA260201',  name:'黑法寶',           spec:'225錠',    category:'男性保健', stock:252, stockPublic:79,  expiry:'20290203', lowAlert:20 },
+    { id:'FSS251216A', name:'杏仁粉',           spec:'500g',     category:'食品',     stock:32,  stockPublic:79,  expiry:'20270118', lowAlert:10 },
+    { id:'FSS251216B', name:'杏仁粉',           spec:'400g',     category:'食品',     stock:0,   stockPublic:30,  expiry:'20270118', lowAlert:10 },
+    { id:'FSS250326',  name:'醫用珍珠粉',       spec:'200g',     category:'醫師專案', stock:12,  stockPublic:0,   expiry:'20280422', lowAlert:10 },
+    { id:'FSS250907',  name:'醫用珍珠粉',       spec:'200g',     category:'醫師專案', stock:22,  stockPublic:0,   expiry:'20280422', lowAlert:10 },
+    { id:'FSA250312A', name:'黑瑪卡錠',         spec:'120錠/瓶', category:'男性保健', stock:10,  stockPublic:0,   expiry:'20280331', lowAlert:5  },
+    { id:'FSA250312B', name:'黑瑪卡錠',         spec:'200g/袋',  category:'男性保健', stock:2.5, stockPublic:0,   expiry:'20280331', lowAlert:5  },
+    { id:'FSG250311',  name:'黑瑪卡粉',         spec:'200g/袋',  category:'男性保健', stock:45,  stockPublic:0,   expiry:'20270326', lowAlert:10 },
+  ];
+  history = [];
+  localStorage.setItem('stockos_seed_ver', SEED_VERSION);
+  save();
+}
+
+
+function save() {
+  localStorage.setItem('stockos_products', JSON.stringify(products));
+  localStorage.setItem('stockos_history',  JSON.stringify(history));
+}
+
+// ===== HEADER CLOCK =====
+function updateClock() {
+  const now = new Date();
+  document.getElementById('headerTime').textContent =
+    now.toLocaleTimeString('zh-TW', { hour12: false });
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ===== TABS =====
+document.querySelectorAll('.tab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.page').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('page-' + t.dataset.page).classList.add('active');
+    if (t.dataset.page === 'inventory') { renderKPI(); renderInventory(); }
+    if (t.dataset.page === 'history')   { renderHistory(); }
+    if (t.dataset.page === 'products')  { renderProducts(); }
+  });
+});
+
+// ===== SCAN MODE =====
+function setMode(m) {
+  scanMode = m;
+  document.getElementById('modeIn').classList.toggle('in', m === 'in');
+  document.getElementById('modeOut').classList.toggle('out', m === 'out');
+  document.getElementById('modeIn').classList.toggle('active', m === 'in');
+  document.getElementById('modeOut').classList.toggle('active', m === 'out');
+  clearResult();
+}
+
+// ===== CAMERA =====
+async function toggleCamera() {
+  if (stream) {
+    stopCamera();
+    return;
+  }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 640 }, height: { ideal: 480 } }
+    });
+    const video = document.getElementById('video');
+    video.srcObject = stream;
+    document.getElementById('scannerPlaceholder').style.display = 'none';
+    document.getElementById('scanOverlay').style.display = 'flex';
+    document.getElementById('btnCamera').textContent = '關閉相機';
+    document.getElementById('btnSwitch').style.display = 'inline-flex';
+    scanning = true;
+    requestAnimationFrame(scanFrame);
+  } catch(e) {
+    showAlert('無法開啟相機：' + e.message, 'error');
+  }
+}
+
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  scanning = false;
+  document.getElementById('video').srcObject = null;
+  document.getElementById('scannerPlaceholder').style.display = 'flex';
+  document.getElementById('scanOverlay').style.display = 'none';
+  document.getElementById('btnCamera').textContent = '開啟相機';
+  document.getElementById('btnSwitch').style.display = 'none';
+}
+
+async function switchCamera() {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  stopCamera();
+  await toggleCamera();
+}
+
+function scanFrame() {
+  if (!scanning) return;
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  if (video.readyState === video.HAVE_ENOUGH_DATA) {
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(video, 0, 0);
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const code = jsQR(imgData.data, imgData.width, imgData.height, { inversionAttempts: 'dontInvert' });
+    if (code) {
+      const now = Date.now();
+      if (code.data !== lastScanned || now - lastScannedTime > 3000) {
+        lastScanned = code.data;
+        lastScannedTime = now;
+        handleScan(code.data);
+      }
+    }
+  }
+  requestAnimationFrame(scanFrame);
+}
+
+// ===== SCAN HANDLER =====
+function handleScan(code) {
+  const prod = products.find(p => p.id === code.trim());
+  if (!prod) {
+    showAlert('找不到商品：' + code, 'error');
+    return;
+  }
+  showProduct(prod);
+}
+
+function showProduct(prod) {
+  currentProduct = prod;
+  document.getElementById('resultId').textContent = prod.id;
+  document.getElementById('resultName').textContent = prod.name + (prod.spec ? '　' + prod.spec : '');
+  document.getElementById('resultStock').textContent = prod.stock;
+  document.getElementById('qtyInput').value = 1;
+  document.getElementById('scanResult').classList.add('show');
+  document.getElementById('scanResult').classList.add('flash');
+  setTimeout(() => document.getElementById('scanResult').classList.remove('flash'), 600);
+
+  const btn = document.getElementById('confirmBtn');
+  if (scanMode === 'in') {
+    btn.className = 'btn btn-green';
+    btn.textContent = '✓ 確認入庫';
+  } else {
+    btn.className = 'btn btn-red';
+    btn.textContent = '✓ 確認出庫';
+  }
+}
+
+function clearResult() {
+  currentProduct = null;
+  document.getElementById('scanResult').classList.remove('show');
+}
+
+function confirmAction() {
+  if (!currentProduct) return;
+  const qty = parseInt(document.getElementById('qtyInput').value) || 1;
+  if (qty <= 0) { showAlert('數量必須大於0', 'error'); return; }
+
+  if (scanMode === 'out' && currentProduct.stock < qty) {
+    showAlert('庫存不足！目前庫存：' + currentProduct.stock, 'error');
+    return;
+  }
+
+  const prod = products.find(p => p.id === currentProduct.id);
+  if (scanMode === 'in') prod.stock += qty;
+  else prod.stock -= qty;
+
+  const now = new Date();
+  const ts = now.toLocaleString('zh-TW', { hour12: false }).replace(',','');
+  history.unshift({
+    time: ts,
+    productId: prod.id,
+    productName: prod.name,
+    type: scanMode,
+    qty: qty,
+    note: ''
+  });
+
+  save();
+  showAlert((scanMode === 'in' ? '✓ 入庫' : '✓ 出庫') + ' ' + prod.name + ' × ' + qty, 'success');
+  document.getElementById('resultStock').textContent = prod.stock;
+  currentProduct = prod;
+  setTimeout(clearResult, 1500);
+}
+
+function manualSearch() {
+  const code = document.getElementById('manualCode').value.trim();
+  if (!code) return;
+  handleScan(code);
+}
+
+function toggleManual() {
+  document.getElementById('manualInput').classList.toggle('show');
+}
+
+// ===== ALERT =====
+function showAlert(msg, type) {
+  const el = document.getElementById('alertBox');
+  el.textContent = msg;
+  el.className = 'alert show alert-' + type;
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ===== KPI =====
+function renderKPI() {
+  const total = products.length;
+  const totalClassic = products.reduce((s, p) => s + p.stock, 0);
+  const totalPublic  = products.reduce((s, p) => s + (p.stockPublic || 0), 0);
+  const totalAll     = totalClassic + totalPublic;
+  const lowStock     = products.filter(p => p.stock <= p.lowAlert).length;
+  const uniqueNames  = new Set(products.map(p => p.name)).size;
+
+  document.getElementById('kpiGrid').innerHTML = `
+    <div class="kpi"><div class="kpi-label">品項種數</div><div class="kpi-value">${uniqueNames}</div></div>
+    <div class="kpi"><div class="kpi-label">批號總筆數</div><div class="kpi-value">${products.length}</div></div>
+    <div class="kpi"><div class="kpi-label">古典庫存</div><div class="kpi-value yellow">${totalClassic}</div></div>
+    <div class="kpi"><div class="kpi-label">大眾庫存</div><div class="kpi-value" style="color:var(--accent2)">${totalPublic}</div></div>
+    <div class="kpi"><div class="kpi-label">合計庫存</div><div class="kpi-value green">${totalAll}</div></div>
+    <div class="kpi"><div class="kpi-label">低庫存警示</div><div class="kpi-value ${lowStock>0?'red':'green'}">${lowStock}</div></div>
+  `;
+}
+
+// ===== INVENTORY TABLE =====
+function renderInventory() {
+  const q = document.getElementById('invSearch').value.toLowerCase();
+  const rows = products.filter(p =>
+    p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || (p.spec||'').toLowerCase().includes(q)
+  );
+  const body = document.getElementById('invBody');
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="10"><div class="empty">無符合商品</div></td></tr>'; return; }
+
+  // 品名小計（古典+大眾合計）
+  const nameTotal = {};
+  products.forEach(p => {
+    nameTotal[p.name] = (nameTotal[p.name] || 0) + p.stock + (p.stockPublic || 0);
+  });
+  const nameFirstIdx = {};
+  rows.forEach((p, i) => { if (!(p.name in nameFirstIdx)) nameFirstIdx[p.name] = i; });
+  const nameCount = {};
+  rows.forEach(p => { nameCount[p.name] = (nameCount[p.name] || 0) + 1; });
+
+  body.innerHTML = rows.map((p, i) => {
+    const sp = p.stockPublic || 0;
+    const cls    = p.stock === 0 ? 'stock-low' : p.stock <= p.lowAlert ? 'stock-warn' : 'stock-ok';
+    const clsPub = sp === 0 ? 'stock-low' : 'stock-ok';
+    const warn   = p.stock === 0 ? '⚠ 缺貨' : p.stock <= p.lowAlert ? '⚠ 偏低' : '─';
+    const expFmt = p.expiry ? p.expiry.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : '─';
+    let expCls = '';
+    if (p.expiry) {
+      const days = (new Date(p.expiry.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')) - new Date()) / 86400000;
+      if (days < 180) expCls = 'stock-warn';
+      if (days < 0)   expCls = 'stock-low';
+    }
+    let totalCell = '';
+    if (nameFirstIdx[p.name] === i) {
+      const span = nameCount[p.name];
+      const tot  = nameTotal[p.name];
+      totalCell = `<td rowspan="${span}" style="font-family:var(--mono);font-size:18px;font-weight:bold;color:var(--yellow);text-align:center;vertical-align:middle;border-left:2px solid var(--border)">${tot}</td>`;
+    }
+    return `<tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--accent)">${p.id}</td>
+      <td style="font-weight:500">${p.name}</td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">${p.spec||'─'}</td>
+      <td style="color:var(--text-dim)">${p.category||'─'}</td>
+      <td class="${expCls}" style="font-family:var(--mono);font-size:12px">${expFmt}</td>
+      <td class="${cls}"  style="font-family:var(--mono);font-size:16px">${p.stock}</td>
+      <td class="${clsPub}" style="font-family:var(--mono);font-size:16px;color:var(--text-dim)">${sp}</td>
+      ${totalCell}
+      <td class="${cls}">${warn}</td>
+      <td><button class="btn btn-primary btn-sm" onclick="showQR('${p.id}')">QR</button></td>
+    </tr>`;
+  }).join('');
+}
+
+// ===== HISTORY TABLE =====
+function renderHistory() {
+  const q = document.getElementById('histSearch').value.toLowerCase();
+  const t = document.getElementById('histType').value;
+  const rows = history.filter(h =>
+    (h.productName.toLowerCase().includes(q) || h.productId.toLowerCase().includes(q)) &&
+    (!t || h.type === t)
+  );
+  const body = document.getElementById('histBody');
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="6"><div class="empty">無紀錄</div></td></tr>'; return; }
+  body.innerHTML = rows.map(h => `<tr>
+    <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${h.time}</td>
+    <td style="font-family:var(--mono);font-size:12px;color:var(--accent)">${h.productId}</td>
+    <td>${h.productName}</td>
+    <td><span class="badge badge-${h.type}">${h.type==='in'?'▲ 入庫':'▼ 出庫'}</span></td>
+    <td style="font-family:var(--mono)">${h.qty}</td>
+    <td style="color:var(--text-dim)">${h.note||'─'}</td>
+  </tr>`).join('');
+}
+
+// ===== PRODUCTS =====
+function addProduct() {
+  const batchId = document.getElementById('pId').value.trim();
+  const name    = document.getElementById('pName').value.trim();
+  if (!batchId) { alert('請輸入批號'); return; }
+  if (!name)    { alert('請輸入產品名稱'); return; }
+  if (products.find(p => p.id === batchId)) { alert('批號已存在：' + batchId); return; }
+  products.push({
+    id:       batchId,
+    name,
+    spec:     document.getElementById('pSpec').value.trim(),
+    category: document.getElementById('pCat').value.trim(),
+    stock:       parseFloat(document.getElementById('pStock').value) || 0,
+    stockPublic: parseFloat(document.getElementById('pStockPublic').value) || 0,
+    expiry:      document.getElementById('pExpiry').value.trim(),
+    lowAlert: parseInt(document.getElementById('pLow').value) || 10
+  });
+  save();
+  renderProducts();
+  document.getElementById('pId').value = '';
+  document.getElementById('pName').value = '';
+  document.getElementById('pSpec').value = '';
+  document.getElementById('pCat').value = '';
+  document.getElementById('pStock').value = 0;
+  document.getElementById('pStockPublic').value = 0;
+  document.getElementById('pExpiry').value = '';
+  showQR(batchId);
+}
+
+function renderProducts() {
+  const q = (document.getElementById('prodSearch')?.value || '').toLowerCase();
+  const body = document.getElementById('prodBody');
+  const rows = q ? products.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)) : products;
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="8"><div class="empty">尚無資料</div></td></tr>'; return; }
+  body.innerHTML = rows.map(p => {
+    const expFmt = p.expiry ? p.expiry.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : '─';
+    const expCls = p.expiry && (new Date(p.expiry.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')) - new Date()) / 86400000 < 180 ? 'stock-warn' : '';
+    const sp = p.stockPublic || 0;
+    return `<tr>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--accent)">${p.id}</td>
+      <td style="font-weight:500">${p.name}</td>
+      <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">${p.spec||'─'}</td>
+      <td class="${expCls}" style="font-family:var(--mono);font-size:12px">${expFmt}</td>
+      <td style="font-family:var(--mono)">${p.stock}</td>
+      <td style="font-family:var(--mono);color:var(--accent2)">${sp}</td>
+      <td style="font-family:var(--mono);color:var(--text-dim)">${p.lowAlert}</td>
+      <td style="display:flex;gap:6px;">
+        <button class="btn btn-primary btn-sm" onclick="openEdit('${p.id}')">編輯</button>
+        <button class="btn btn-primary btn-sm" onclick="showQR('${p.id}')">QR</button>
+        <button class="btn btn-red btn-sm" onclick="deleteProduct('${p.id}')">刪除</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+// ===== EDIT MODAL =====
+function openEdit(id) {
+  const p = products.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('editId').value     = p.id;
+  document.getElementById('editName').value   = p.name;
+  document.getElementById('editSpec').value   = p.spec    || '';
+  document.getElementById('editCat').value    = p.category|| '';
+  document.getElementById('editExpiry').value = p.expiry  || '';
+  document.getElementById('editStock').value       = p.stock;
+  document.getElementById('editStockPublic').value = p.stockPublic || 0;
+  document.getElementById('editLow').value         = p.lowAlert;
+  document.getElementById('editAlert').className = 'alert';
+  const modal = document.getElementById('editModal');
+  modal.style.display = 'flex';
+}
+
+function saveEdit() {
+  const id   = document.getElementById('editId').value;
+  const name = document.getElementById('editName').value.trim();
+  if (!name) {
+    const al = document.getElementById('editAlert');
+    al.textContent = '產品名稱不可為空';
+    al.className = 'alert show alert-error';
+    return;
+  }
+  const idx = products.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  products[idx] = {
+    ...products[idx],
+    name,
+    spec:     document.getElementById('editSpec').value.trim(),
+    category: document.getElementById('editCat').value.trim(),
+    expiry:   document.getElementById('editExpiry').value.trim(),
+    stock:       parseFloat(document.getElementById('editStock').value)       || 0,
+    stockPublic: parseFloat(document.getElementById('editStockPublic').value) || 0,
+    lowAlert:    parseInt(document.getElementById('editLow').value)              || 10,
+  };
+  save();
+  const al = document.getElementById('editAlert');
+  al.textContent = '✓ 已儲存';
+  al.className = 'alert show alert-success';
+  setTimeout(() => {
+    closeEdit();
+    renderProducts();
+  }, 800);
+}
+
+function closeEdit() {
+  document.getElementById('editModal').style.display = 'none';
+}
+
+function deleteProduct(id) {
+  if (!confirm('確定刪除此商品？')) return;
+  products = products.filter(p => p.id !== id);
+  save();
+  renderProducts();
+}
+
+// ===== QR MODAL =====
+function showQR(id) {
+  const prod = products.find(p => p.id === id);
+  if (!prod) return;
+  const modal = document.getElementById('qrModal');
+  const display = document.getElementById('qrDisplay');
+  display.innerHTML = '';
+  new QRCode(display, {
+    text: prod.id,
+    width: 160, height: 160,
+    colorDark: '#000000',
+    colorLight: '#ffffff'
+  });
+  document.getElementById('qrProdInfo').innerHTML = `
+    <div style="margin-top:4px;color:#222;font-size:14px;font-weight:bold">${prod.name}</div>
+    <div style="color:#555;font-size:12px">${prod.spec||''}</div>
+    <div style="color:#888;font-size:11px;margin-top:4px">批號：${prod.id}</div>
+    ${prod.expiry ? `<div style="color:#888;font-size:11px">效期：${prod.expiry.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')}</div>` : ''}
+  `;
+  modal.style.display = 'flex';
+}
+
+function closeQrModal() {
+  document.getElementById('qrModal').style.display = 'none';
+}
+
+function printQR() {
+  window.print();
+}
+
+// Init
+renderProducts();
+</script>
+</body>
+</html>
