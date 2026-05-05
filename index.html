@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>庫存掃碼系統</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.19.1/umd/index.min.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Noto+Sans+TC:wght@300;400;500;700&display=swap');
 
@@ -420,6 +420,28 @@
   }
   .flash { animation: flashIn .6s ease-out; }
 
+  /* Scanner status */
+  .scan-status {
+    position: absolute;
+    bottom: 8px; left: 0; right: 0;
+    text-align: center;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    background: rgba(0,0,0,.5);
+    padding: 4px;
+    letter-spacing: 1px;
+  }
+  .scan-status.ok   { color: var(--green); }
+  .scan-status.err  { color: var(--red); }
+
+  /* 掃描成功閃光 */
+  @keyframes scanSuccess {
+    0%   { box-shadow: inset 0 0 0 3px var(--green); }
+    100% { box-shadow: inset 0 0 0 0px transparent; }
+  }
+  .scanner-wrap.success { animation: scanSuccess .4s ease-out; }
+
   /* Manual input toggle */
   .manual-toggle {
     font-family: var(--mono); font-size: 11px;
@@ -481,8 +503,8 @@
     <div class="card">
       <div class="card-title">相機掃碼</div>
       <div class="scanner-wrap" id="scannerWrap">
-        <video id="video" autoplay playsinline muted></video>
-        <div class="scan-overlay" id="scanOverlay">
+        <video id="video" autoplay playsinline muted style="width:100%;height:100%;object-fit:cover;display:block;"></video>
+        <div class="scan-overlay" id="scanOverlay" style="display:none;">
           <div class="scan-frame">
             <span></span>
             <div class="scan-line"></div>
@@ -495,7 +517,7 @@
           </svg>
           <p>點擊「開啟相機」開始掃描</p>
         </div>
-        <canvas id="canvas" style="display:none"></canvas>
+        <div class="scan-status" id="scanStatus" style="display:none;">● 掃描中...</div>
       </div>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn btn-primary" id="btnCamera" onclick="toggleCamera()">開啟相機</button>
@@ -784,110 +806,136 @@ function setMode(m) {
   clearResult();
 }
 
-// ===== CAMERA =====
-let scanTimer = null;
+// ===== CAMERA (ZXing) =====
+let zxingReader = null;
+let zxingControls = null;
+let cameraDevices = [];
+let cameraIndex = 0;
+
+async function initZXing() {
+  if (typeof ZXing === 'undefined') {
+    showAlert('掃碼引擎載入失敗，請重新整理頁面', 'error');
+    return false;
+  }
+  if (!zxingReader) {
+    const hints = new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    zxingReader = new ZXing.BrowserMultiFormatReader(hints, 300);
+  }
+  return true;
+}
 
 async function toggleCamera() {
-  if (stream) { stopCamera(); return; }
-  try {
-    // 要求高解析度後鏡頭，手機後鏡頭通常支援 1920x1080
-    const constraints = {
-      video: {
-        facingMode: { ideal: facingMode },
-        width:  { ideal: 1920, min: 640 },
-        height: { ideal: 1080, min: 480 },
-        focusMode: 'continuous'
-      }
-    };
-    stream = await navigator.mediaDevices.getUserMedia(constraints);
-    const video = document.getElementById('video');
-    video.srcObject = stream;
+  if (zxingControls) { stopCamera(); return; }
 
-    // 等 metadata 載入後再開始掃（確保 videoWidth/Height 正確）
-    await new Promise(res => {
-      video.onloadedmetadata = () => { video.play(); res(); };
-    });
+  const ok = await initZXing();
+  if (!ok) return;
+
+  try {
+    // 列出所有相機裝置
+    cameraDevices = await ZXing.BrowserCodeReader.listVideoInputDevices();
+    if (cameraDevices.length === 0) {
+      showAlert('找不到相機裝置', 'error'); return;
+    }
+
+    // 手機優先選後鏡頭
+    const backIdx = cameraDevices.findIndex(d =>
+      /back|rear|environment|後/i.test(d.label)
+    );
+    cameraIndex = backIdx >= 0 ? backIdx : 0;
+
+    await startZXing();
+  } catch(e) {
+    showAlert('相機開啟失敗：' + e.message, 'error');
+  }
+}
+
+async function startZXing() {
+  const deviceId = cameraDevices[cameraIndex]?.deviceId;
+  const video = document.getElementById('video');
+
+  try {
+    zxingControls = await zxingReader.decodeFromVideoDevice(
+      deviceId,
+      video,
+      (result, err) => {
+        if (result) {
+          const now = Date.now();
+          const text = result.getText();
+          if (text !== lastScanned || now - lastScannedTime > 3000) {
+            lastScanned = text;
+            lastScannedTime = now;
+            onScanSuccess(text);
+          }
+        }
+        // err 通常是 NotFoundException（沒掃到），正常忽略
+      }
+    );
 
     document.getElementById('scannerPlaceholder').style.display = 'none';
     document.getElementById('scanOverlay').style.display = 'flex';
+    document.getElementById('scanStatus').style.display = 'block';
+    document.getElementById('scanStatus').textContent = '● 掃描中...';
+    document.getElementById('scanStatus').className = 'scan-status';
     document.getElementById('btnCamera').textContent = '關閉相機';
     document.getElementById('btnSwitch').style.display = 'inline-flex';
     scanning = true;
-    scheduleScan();
+
   } catch(e) {
-    // fallback：降規重試
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
-      const video = document.getElementById('video');
-      video.srcObject = stream;
-      await new Promise(res => { video.onloadedmetadata = () => { video.play(); res(); }; });
-      document.getElementById('scannerPlaceholder').style.display = 'none';
-      document.getElementById('scanOverlay').style.display = 'flex';
-      document.getElementById('btnCamera').textContent = '關閉相機';
-      document.getElementById('btnSwitch').style.display = 'inline-flex';
-      scanning = true;
-      scheduleScan();
-    } catch(e2) {
-      showAlert('無法開啟相機：' + e2.message, 'error');
-    }
+    showAlert('無法啟動掃描：' + e.message, 'error');
   }
 }
 
 function stopCamera() {
+  if (zxingControls) {
+    try { zxingControls.stop(); } catch(e) {}
+    zxingControls = null;
+  }
+  if (zxingReader) {
+    try { zxingReader.reset(); } catch(e) {}
+  }
   scanning = false;
-  if (scanTimer) { clearTimeout(scanTimer); scanTimer = null; }
-  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  const video = document.getElementById('video');
-  video.srcObject = null;
+  document.getElementById('video').srcObject = null;
   document.getElementById('scannerPlaceholder').style.display = 'flex';
   document.getElementById('scanOverlay').style.display = 'none';
+  document.getElementById('scanStatus').style.display = 'none';
   document.getElementById('btnCamera').textContent = '開啟相機';
   document.getElementById('btnSwitch').style.display = 'none';
 }
 
 async function switchCamera() {
-  facingMode = facingMode === 'environment' ? 'user' : 'environment';
-  stopCamera();
-  await new Promise(r => setTimeout(r, 300)); // 短暫等待讓舊stream完全釋放
-  await toggleCamera();
+  if (cameraDevices.length <= 1) { showAlert('只有一個相機', 'error'); return; }
+  if (zxingControls) {
+    try { zxingControls.stop(); } catch(e) {}
+    zxingControls = null;
+  }
+  cameraIndex = (cameraIndex + 1) % cameraDevices.length;
+  await new Promise(r => setTimeout(r, 300));
+  await startZXing();
 }
 
-// 用 setTimeout 而非 rAF，避免手機背景throttle
-function scheduleScan() {
-  if (!scanning) return;
-  scanTimer = setTimeout(() => {
-    scanFrame();
-    scheduleScan();
-  }, 150); // 約6-7fps，足夠掃QR又不耗電
-}
+// 掃描成功回調
+function onScanSuccess(text) {
+  // 震動反饋（手機支援）
+  if (navigator.vibrate) navigator.vibrate(80);
 
-function scanFrame() {
-  if (!scanning) return;
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
+  // 視覺閃光
+  const wrap = document.getElementById('scannerWrap');
+  wrap.classList.add('success');
+  setTimeout(() => wrap.classList.remove('success'), 400);
 
-  if (video.readyState !== video.HAVE_ENOUGH_DATA || video.videoWidth === 0) return;
-
-  // 保留原始解析度，不壓縮
-  const vw = video.videoWidth;
-  const vh = video.videoHeight;
-  canvas.width  = vw;
-  canvas.height = vh;
-
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(video, 0, 0, vw, vh);
-  const imgData = ctx.getImageData(0, 0, vw, vh);
-
-  // attemptBoth：同時嘗試正色和反色，最大相容性
-  const code = jsQR(imgData.data, vw, vh, { inversionAttempts: 'attemptBoth' });
-  if (code) {
-    const now = Date.now();
-    if (code.data !== lastScanned || now - lastScannedTime > 3000) {
-      lastScanned = code.data;
-        lastScannedTime = now;
-        handleScan(code.data);
-      }
+  // 更新狀態顯示
+  const status = document.getElementById('scanStatus');
+  status.textContent = '✓ 已掃描：' + text;
+  status.className = 'scan-status ok';
+  setTimeout(() => {
+    if (scanning) {
+      status.textContent = '● 掃描中...';
+      status.className = 'scan-status';
     }
+  }, 1500);
+
+  handleScan(text);
 }
 
 // ===== SCAN HANDLER =====
