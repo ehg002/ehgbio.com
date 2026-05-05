@@ -562,7 +562,7 @@
           <thead>
             <tr>
               <th>批號（QR）</th><th>產品名稱</th><th>規格</th><th>類別</th>
-              <th>有效日期</th><th>古典庫存</th><th>大眾庫存</th><th>品名小計</th><th>警示</th><th>QR</th>
+              <th>有效日期</th><th>庫存量</th><th>品名小計</th><th>警示</th><th>QR</th>
             </tr>
           </thead>
           <tbody id="invBody"></tbody>
@@ -616,12 +616,8 @@
           <input type="text" id="pCat" placeholder="例：關節保健">
         </div>
         <div class="form-group">
-          <label>古典庫存</label>
+          <label>初始庫存</label>
           <input type="number" id="pStock" value="0" min="0">
-        </div>
-        <div class="form-group">
-          <label>大眾庫存</label>
-          <input type="number" id="pStockPublic" value="0" min="0">
         </div>
         <div class="form-group">
           <label>有效日期（YYYYMMDD）</label>
@@ -643,7 +639,7 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>批號</th><th>名稱</th><th>規格</th><th>有效日期</th><th>古典庫存</th><th>大眾庫存</th><th>警示值</th><th>操作</th></tr>
+            <tr><th>批號</th><th>名稱</th><th>規格</th><th>有效日期</th><th>庫存</th><th>警示值</th><th>操作</th></tr>
           </thead>
           <tbody id="prodBody"></tbody>
         </table>
@@ -688,12 +684,8 @@
             <input type="text" id="editExpiry" placeholder="例：20290101">
           </div>
           <div class="form-group">
-            <label>古典庫存</label>
+            <label>庫存數量</label>
             <input type="number" id="editStock" min="0" step="0.5">
-          </div>
-          <div class="form-group">
-            <label>大眾庫存</label>
-            <input type="number" id="editStockPublic" min="0" step="0.5">
           </div>
           <div class="form-group">
             <label>低庫存警示值</label>
@@ -726,42 +718,42 @@ let lastScanned = '';
 let lastScannedTime = 0;
 
 // ===== SEED DATA =====
-const SEED_VERSION = '20260504c';
+const SEED_VERSION = '20260504-rollback';
 if (products.length === 0 || localStorage.getItem('stockos_seed_ver') !== SEED_VERSION) {
   products = [
-    { id:'FSA251220',  name:'古典關健',         spec:'540錠',    category:'關節保健', stock:51,  stockPublic:94,  expiry:'20290101', lowAlert:20 },
-    { id:'FSA260112',  name:'古典關健',         spec:'540錠',    category:'關節保健', stock:133, stockPublic:0,   expiry:'20290202', lowAlert:20 },
-    { id:'FSA260401',  name:'古典關健',         spec:'540錠',    category:'關節保健', stock:127, stockPublic:0,   expiry:'20290409', lowAlert:20 },
-    { id:'FSA260402',  name:'古典關健',         spec:'540錠',    category:'關節保健', stock:134, stockPublic:0,   expiry:'20290414', lowAlert:20 },
-    { id:'FSA250906',  name:'素關健',           spec:'270錠',    category:'關節保健', stock:32,  stockPublic:58,  expiry:'20280925', lowAlert:15 },
-    { id:'FSA251105',  name:'古典晶華',         spec:'450錠',    category:'眼睛保健', stock:49,  stockPublic:96,  expiry:'20281113', lowAlert:20 },
-    { id:'FSA251106',  name:'古典晶華',         spec:'450錠',    category:'眼睛保健', stock:142, stockPublic:0,   expiry:'20281119', lowAlert:20 },
-    { id:'FSA250324',  name:'素晶華',           spec:'450錠',    category:'美容保健', stock:8,   stockPublic:44,  expiry:'20280330', lowAlert:15 },
-    { id:'FSA251219',  name:'王者之健',         spec:'450錠',    category:'男性保健', stock:116, stockPublic:98,  expiry:'20281225', lowAlert:20 },
-    { id:'FSA260302',  name:'王者之健',         spec:'450錠',    category:'男性保健', stock:124, stockPublic:0,   expiry:'20290326', lowAlert:20 },
-    { id:'FSA251218',  name:'貴妃珍寶',         spec:'450錠',    category:'美容保健', stock:136, stockPublic:59,  expiry:'20281217', lowAlert:20 },
-    { id:'FSA250909',  name:'珍珠元氣美人錠',   spec:'450錠',    category:'美容保健', stock:34,  stockPublic:115, expiry:'20280930', lowAlert:20 },
-    { id:'FSA251011',  name:'珍珠元氣美人錠',   spec:'450錠',    category:'美容保健', stock:149, stockPublic:0,   expiry:'20281022', lowAlert:20 },
-    { id:'FSS250905',  name:'頂級珍珠粉',       spec:'60入',     category:'美容保健', stock:47,  stockPublic:29,  expiry:'20280422', lowAlert:10 },
-    { id:'FSG251217',  name:'經舒熱飲',         spec:'9入',      category:'女性保健', stock:288, stockPublic:156, expiry:'20281222', lowAlert:30 },
-    { id:'FSA241201',  name:'無敏樂',           spec:'225錠',    category:'過敏保健', stock:11,  stockPublic:34,  expiry:'20271202', lowAlert:15 },
-    { id:'FSA260111',  name:'無敏樂',           spec:'225錠',    category:'過敏保健', stock:242, stockPublic:0,   expiry:'20290128', lowAlert:15 },
-    { id:'FSA250714',  name:'優視學',           spec:'240錠',    category:'眼睛保健', stock:52,  stockPublic:149, expiry:'20280113', lowAlert:15 },
-    { id:'FSG250809',  name:'小強身',           spec:'1G',       category:'兒童保健', stock:37,  stockPublic:50,  expiry:'20281012', lowAlert:10 },
-    { id:'FSG250609',  name:'小強身',           spec:'2G',       category:'兒童保健', stock:29,  stockPublic:38,  expiry:'20281012', lowAlert:10 },
-    { id:'FSG240413',  name:'小強身',           spec:'3G',       category:'兒童保健', stock:29,  stockPublic:15,  expiry:'20270507', lowAlert:10 },
-    { id:'FSA230909',  name:'成長精華-男青春前期', spec:'135錠', category:'成長保健', stock:32,  stockPublic:49,  expiry:'20261001', lowAlert:10 },
-    { id:'FSA241103',  name:'成長精華-男青春期',   spec:'135錠', category:'成長保健', stock:0,   stockPublic:59,  expiry:'20271104', lowAlert:10 },
-    { id:'FSA241107',  name:'成長精華-女青春前期', spec:'135錠', category:'成長保健', stock:59,  stockPublic:60,  expiry:'20271110', lowAlert:10 },
-    { id:'FSA250318',  name:'成長精華-女青春期',   spec:'135錠', category:'成長保健', stock:88,  stockPublic:98,  expiry:'20280319', lowAlert:10 },
-    { id:'FSA260201',  name:'黑法寶',           spec:'225錠',    category:'男性保健', stock:252, stockPublic:79,  expiry:'20290203', lowAlert:20 },
-    { id:'FSS251216A', name:'杏仁粉',           spec:'500g',     category:'食品',     stock:32,  stockPublic:79,  expiry:'20270118', lowAlert:10 },
-    { id:'FSS251216B', name:'杏仁粉',           spec:'400g',     category:'食品',     stock:0,   stockPublic:30,  expiry:'20270118', lowAlert:10 },
-    { id:'FSS250326',  name:'醫用珍珠粉',       spec:'200g',     category:'醫師專案', stock:12,  stockPublic:0,   expiry:'20280422', lowAlert:10 },
-    { id:'FSS250907',  name:'醫用珍珠粉',       spec:'200g',     category:'醫師專案', stock:22,  stockPublic:0,   expiry:'20280422', lowAlert:10 },
-    { id:'FSA250312A', name:'黑瑪卡錠',         spec:'120錠/瓶', category:'男性保健', stock:10,  stockPublic:0,   expiry:'20280331', lowAlert:5  },
-    { id:'FSA250312B', name:'黑瑪卡錠',         spec:'200g/袋',  category:'男性保健', stock:2.5, stockPublic:0,   expiry:'20280331', lowAlert:5  },
-    { id:'FSG250311',  name:'黑瑪卡粉',         spec:'200g/袋',  category:'男性保健', stock:45,  stockPublic:0,   expiry:'20270326', lowAlert:10 },
+    { id:'FSA251220',  name:'古典關健',         spec:'540錠',    category:'關節保健', stock:51,  expiry:'20290101', lowAlert:20 },
+    { id:'FSA260112',  name:'古典關健',         spec:'540錠',    category:'關節保健', stock:133,   expiry:'20290202', lowAlert:20 },
+    { id:'FSA260401',  name:'古典關健',         spec:'540錠',    category:'關節保健', stock:127,   expiry:'20290409', lowAlert:20 },
+    { id:'FSA260402',  name:'古典關健',         spec:'540錠',    category:'關節保健', stock:134,   expiry:'20290414', lowAlert:20 },
+    { id:'FSA250906',  name:'素關健',           spec:'270錠',    category:'關節保健', stock:32,  expiry:'20280925', lowAlert:15 },
+    { id:'FSA251105',  name:'古典晶華',         spec:'450錠',    category:'眼睛保健', stock:49,  expiry:'20281113', lowAlert:20 },
+    { id:'FSA251106',  name:'古典晶華',         spec:'450錠',    category:'眼睛保健', stock:142,   expiry:'20281119', lowAlert:20 },
+    { id:'FSA250324',  name:'素晶華',           spec:'450錠',    category:'美容保健', stock:8,  expiry:'20280330', lowAlert:15 },
+    { id:'FSA251219',  name:'王者之健',         spec:'450錠',    category:'男性保健', stock:116,  expiry:'20281225', lowAlert:20 },
+    { id:'FSA260302',  name:'王者之健',         spec:'450錠',    category:'男性保健', stock:124,   expiry:'20290326', lowAlert:20 },
+    { id:'FSA251218',  name:'貴妃珍寶',         spec:'450錠',    category:'美容保健', stock:136,  expiry:'20281217', lowAlert:20 },
+    { id:'FSA250909',  name:'珍珠元氣美人錠',   spec:'450錠',    category:'美容保健', stock:34, expiry:'20280930', lowAlert:20 },
+    { id:'FSA251011',  name:'珍珠元氣美人錠',   spec:'450錠',    category:'美容保健', stock:149,   expiry:'20281022', lowAlert:20 },
+    { id:'FSS250905',  name:'頂級珍珠粉',       spec:'60入',     category:'美容保健', stock:47,  expiry:'20280422', lowAlert:10 },
+    { id:'FSG251217',  name:'經舒熱飲',         spec:'9入',      category:'女性保健', stock:288, expiry:'20281222', lowAlert:30 },
+    { id:'FSA241201',  name:'無敏樂',           spec:'225錠',    category:'過敏保健', stock:11,  expiry:'20271202', lowAlert:15 },
+    { id:'FSA260111',  name:'無敏樂',           spec:'225錠',    category:'過敏保健', stock:242,   expiry:'20290128', lowAlert:15 },
+    { id:'FSA250714',  name:'優視學',           spec:'240錠',    category:'眼睛保健', stock:52, expiry:'20280113', lowAlert:15 },
+    { id:'FSG250809',  name:'小強身',           spec:'1G',       category:'兒童保健', stock:37,  expiry:'20281012', lowAlert:10 },
+    { id:'FSG250609',  name:'小強身',           spec:'2G',       category:'兒童保健', stock:29,  expiry:'20281012', lowAlert:10 },
+    { id:'FSG240413',  name:'小強身',           spec:'3G',       category:'兒童保健', stock:29,  expiry:'20270507', lowAlert:10 },
+    { id:'FSA230909',  name:'成長精華-男青春前期', spec:'135錠', category:'成長保健', stock:32,  expiry:'20261001', lowAlert:10 },
+    { id:'FSA241103',  name:'成長精華-男青春期',   spec:'135錠', category:'成長保健', stock:0,  expiry:'20271104', lowAlert:10 },
+    { id:'FSA241107',  name:'成長精華-女青春前期', spec:'135錠', category:'成長保健', stock:59,  expiry:'20271110', lowAlert:10 },
+    { id:'FSA250318',  name:'成長精華-女青春期',   spec:'135錠', category:'成長保健', stock:88,  expiry:'20280319', lowAlert:10 },
+    { id:'FSA260201',  name:'黑法寶',           spec:'225錠',    category:'男性保健', stock:252,  expiry:'20290203', lowAlert:20 },
+    { id:'FSS251216A', name:'杏仁粉',           spec:'500g',     category:'食品',     stock:32,  expiry:'20270118', lowAlert:10 },
+    { id:'FSS251216B', name:'杏仁粉',           spec:'400g',     category:'食品',     stock:0,  expiry:'20270118', lowAlert:10 },
+    { id:'FSS250326',  name:'醫用珍珠粉',       spec:'200g',     category:'醫師專案', stock:12,   expiry:'20280422', lowAlert:10 },
+    { id:'FSS250907',  name:'醫用珍珠粉',       spec:'200g',     category:'醫師專案', stock:22,   expiry:'20280422', lowAlert:10 },
+    { id:'FSA250312A', name:'黑瑪卡錠',         spec:'120錠/瓶', category:'男性保健', stock:10,   expiry:'20280331', lowAlert:5  },
+    { id:'FSA250312B', name:'黑瑪卡錠',         spec:'200g/袋',  category:'男性保健', stock:2.5,   expiry:'20280331', lowAlert:5  },
+    { id:'FSG250311',  name:'黑瑪卡粉',         spec:'200g/袋',  category:'男性保健', stock:45,   expiry:'20270326', lowAlert:10 },
   ];
   history = [];
   localStorage.setItem('stockos_seed_ver', SEED_VERSION);
@@ -1025,18 +1017,14 @@ function showAlert(msg, type) {
 // ===== KPI =====
 function renderKPI() {
   const total = products.length;
-  const totalClassic = products.reduce((s, p) => s + p.stock, 0);
-  const totalPublic  = products.reduce((s, p) => s + (p.stockPublic || 0), 0);
-  const totalAll     = totalClassic + totalPublic;
-  const lowStock     = products.filter(p => p.stock <= p.lowAlert).length;
-  const uniqueNames  = new Set(products.map(p => p.name)).size;
+  const totalStock  = products.reduce((s, p) => s + p.stock, 0);
+  const lowStock    = products.filter(p => p.stock <= p.lowAlert).length;
+  const uniqueNames = new Set(products.map(p => p.name)).size;
 
   document.getElementById('kpiGrid').innerHTML = `
     <div class="kpi"><div class="kpi-label">品項種數</div><div class="kpi-value">${uniqueNames}</div></div>
     <div class="kpi"><div class="kpi-label">批號總筆數</div><div class="kpi-value">${products.length}</div></div>
-    <div class="kpi"><div class="kpi-label">古典庫存</div><div class="kpi-value yellow">${totalClassic}</div></div>
-    <div class="kpi"><div class="kpi-label">大眾庫存</div><div class="kpi-value" style="color:var(--accent2)">${totalPublic}</div></div>
-    <div class="kpi"><div class="kpi-label">合計庫存</div><div class="kpi-value green">${totalAll}</div></div>
+    <div class="kpi"><div class="kpi-label">總庫存件數</div><div class="kpi-value yellow">${totalStock}</div></div>
     <div class="kpi"><div class="kpi-label">低庫存警示</div><div class="kpi-value ${lowStock>0?'red':'green'}">${lowStock}</div></div>
   `;
 }
@@ -1048,23 +1036,19 @@ function renderInventory() {
     p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q) || (p.spec||'').toLowerCase().includes(q)
   );
   const body = document.getElementById('invBody');
-  if (!rows.length) { body.innerHTML = '<tr><td colspan="10"><div class="empty">無符合商品</div></td></tr>'; return; }
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="9"><div class="empty">無符合商品</div></td></tr>'; return; }
 
-  // 品名小計（古典+大眾合計）
+  // 品名小計
   const nameTotal = {};
-  products.forEach(p => {
-    nameTotal[p.name] = (nameTotal[p.name] || 0) + p.stock + (p.stockPublic || 0);
-  });
+  products.forEach(p => { nameTotal[p.name] = (nameTotal[p.name] || 0) + p.stock; });
   const nameFirstIdx = {};
   rows.forEach((p, i) => { if (!(p.name in nameFirstIdx)) nameFirstIdx[p.name] = i; });
   const nameCount = {};
   rows.forEach(p => { nameCount[p.name] = (nameCount[p.name] || 0) + 1; });
 
   body.innerHTML = rows.map((p, i) => {
-    const sp = p.stockPublic || 0;
-    const cls    = p.stock === 0 ? 'stock-low' : p.stock <= p.lowAlert ? 'stock-warn' : 'stock-ok';
-    const clsPub = sp === 0 ? 'stock-low' : 'stock-ok';
-    const warn   = p.stock === 0 ? '⚠ 缺貨' : p.stock <= p.lowAlert ? '⚠ 偏低' : '─';
+    const cls  = p.stock === 0 ? 'stock-low' : p.stock <= p.lowAlert ? 'stock-warn' : 'stock-ok';
+    const warn = p.stock === 0 ? '⚠ 缺貨' : p.stock <= p.lowAlert ? '⚠ 偏低' : '─';
     const expFmt = p.expiry ? p.expiry.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : '─';
     let expCls = '';
     if (p.expiry) {
@@ -1076,21 +1060,15 @@ function renderInventory() {
     if (nameFirstIdx[p.name] === i) {
       const span = nameCount[p.name];
       const tot  = nameTotal[p.name];
-      totalCell = `<td rowspan="${span}" style="font-family:var(--mono);font-size:18px;font-weight:bold;color:var(--yellow);text-align:center;vertical-align:middle;border-left:3px solid var(--accent);border-top:2px solid var(--accent);border-bottom:2px solid var(--accent);border-right:3px solid var(--accent);background:rgba(0,229,255,0.04)">${tot}</td>`;
+      totalCell = `<td rowspan="${span}" style="font-family:var(--mono);font-size:18px;font-weight:bold;color:var(--yellow);text-align:center;vertical-align:middle;border-left:2px solid var(--border)">${tot}</td>`;
     }
-    const isGroupFirst = nameFirstIdx[p.name] === i;
-    const isGroupLast  = nameFirstIdx[p.name] + nameCount[p.name] - 1 === i;
-    const groupBorderTop    = isGroupFirst ? 'border-top:2px solid rgba(0,229,255,0.25);' : '';
-    const groupBorderBottom = isGroupLast  ? 'border-bottom:2px solid rgba(0,229,255,0.25);' : '';
-    const rowStyle = `${groupBorderTop}${groupBorderBottom}`;
-    return `<tr style="${rowStyle}">
+    return `<tr>
       <td style="font-family:var(--mono);font-size:11px;color:var(--accent)">${p.id}</td>
       <td style="font-weight:500">${p.name}</td>
       <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">${p.spec||'─'}</td>
       <td style="color:var(--text-dim)">${p.category||'─'}</td>
       <td class="${expCls}" style="font-family:var(--mono);font-size:12px">${expFmt}</td>
-      <td class="${cls}"  style="font-family:var(--mono);font-size:16px">${p.stock}</td>
-      <td class="${clsPub}" style="font-family:var(--mono);font-size:16px;color:var(--text-dim)">${sp}</td>
+      <td class="${cls}" style="font-family:var(--mono);font-size:16px">${p.stock}</td>
       ${totalCell}
       <td class="${cls}">${warn}</td>
       <td><button class="btn btn-primary btn-sm" onclick="showQR('${p.id}')">QR</button></td>
@@ -1130,9 +1108,8 @@ function addProduct() {
     name,
     spec:     document.getElementById('pSpec').value.trim(),
     category: document.getElementById('pCat').value.trim(),
-    stock:       parseFloat(document.getElementById('pStock').value) || 0,
-    stockPublic: parseFloat(document.getElementById('pStockPublic').value) || 0,
-    expiry:      document.getElementById('pExpiry').value.trim(),
+    stock:    parseFloat(document.getElementById('pStock').value) || 0,
+    expiry:   document.getElementById('pExpiry').value.trim(),
     lowAlert: parseInt(document.getElementById('pLow').value) || 10
   });
   save();
@@ -1142,7 +1119,6 @@ function addProduct() {
   document.getElementById('pSpec').value = '';
   document.getElementById('pCat').value = '';
   document.getElementById('pStock').value = 0;
-  document.getElementById('pStockPublic').value = 0;
   document.getElementById('pExpiry').value = '';
   showQR(batchId);
 }
@@ -1151,23 +1127,16 @@ function renderProducts() {
   const q = (document.getElementById('prodSearch')?.value || '').toLowerCase();
   const body = document.getElementById('prodBody');
   const rows = q ? products.filter(p => p.name.toLowerCase().includes(q) || p.id.toLowerCase().includes(q)) : products;
-  if (!rows.length) { body.innerHTML = '<tr><td colspan="8"><div class="empty">尚無資料</div></td></tr>'; return; }
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="7"><div class="empty">尚無資料</div></td></tr>'; return; }
   body.innerHTML = rows.map(p => {
     const expFmt = p.expiry ? p.expiry.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : '─';
     const expCls = p.expiry && (new Date(p.expiry.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3')) - new Date()) / 86400000 < 180 ? 'stock-warn' : '';
-    const sp = p.stockPublic || 0;
-    const isGroupFirst = nameFirstIdx[p.name] === i;
-    const isGroupLast  = nameFirstIdx[p.name] + nameCount[p.name] - 1 === i;
-    const groupBorderTop    = isGroupFirst ? 'border-top:2px solid rgba(0,229,255,0.25);' : '';
-    const groupBorderBottom = isGroupLast  ? 'border-bottom:2px solid rgba(0,229,255,0.25);' : '';
-    const rowStyle = `${groupBorderTop}${groupBorderBottom}`;
-    return `<tr style="${rowStyle}">
+    return `<tr>
       <td style="font-family:var(--mono);font-size:11px;color:var(--accent)">${p.id}</td>
       <td style="font-weight:500">${p.name}</td>
       <td style="font-family:var(--mono);font-size:12px;color:var(--text-dim)">${p.spec||'─'}</td>
       <td class="${expCls}" style="font-family:var(--mono);font-size:12px">${expFmt}</td>
       <td style="font-family:var(--mono)">${p.stock}</td>
-      <td style="font-family:var(--mono);color:var(--accent2)">${sp}</td>
       <td style="font-family:var(--mono);color:var(--text-dim)">${p.lowAlert}</td>
       <td style="display:flex;gap:6px;">
         <button class="btn btn-primary btn-sm" onclick="openEdit('${p.id}')">編輯</button>
@@ -1187,9 +1156,8 @@ function openEdit(id) {
   document.getElementById('editSpec').value   = p.spec    || '';
   document.getElementById('editCat').value    = p.category|| '';
   document.getElementById('editExpiry').value = p.expiry  || '';
-  document.getElementById('editStock').value       = p.stock;
-  document.getElementById('editStockPublic').value = p.stockPublic || 0;
-  document.getElementById('editLow').value         = p.lowAlert;
+  document.getElementById('editStock').value  = p.stock;
+  document.getElementById('editLow').value    = p.lowAlert;
   document.getElementById('editAlert').className = 'alert';
   const modal = document.getElementById('editModal');
   modal.style.display = 'flex';
@@ -1212,9 +1180,8 @@ function saveEdit() {
     spec:     document.getElementById('editSpec').value.trim(),
     category: document.getElementById('editCat').value.trim(),
     expiry:   document.getElementById('editExpiry').value.trim(),
-    stock:       parseFloat(document.getElementById('editStock').value)       || 0,
-    stockPublic: parseFloat(document.getElementById('editStockPublic').value) || 0,
-    lowAlert:    parseInt(document.getElementById('editLow').value)              || 10,
+    stock:    parseFloat(document.getElementById('editStock').value) || 0,
+    lowAlert: parseInt(document.getElementById('editLow').value)     || 10,
   };
   save();
   const al = document.getElementById('editAlert');
