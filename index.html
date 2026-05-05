@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>庫存掃碼系統</title>
+<title>古典藥園-庫存掃碼系統</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"></script>
 <style>
@@ -769,10 +769,36 @@ if (products.length === 0 || localStorage.getItem('stockos_seed_ver') !== SEED_V
     { id:'YYZ-BATCH01',name:'醫用珍珠粉(總)',      spec:'200g',     category:'醫師專案', stock:34,  stockPublic:0,   expiry:'',         lowAlert:10 },
   ];
   history = [];
+  sortProducts();
   localStorage.setItem('stockos_seed_ver', SEED_VERSION);
   save();
 }
 
+
+// ===== 排序：置頂品名 → 其餘品名字母序 → 同名依有效日期升冪 =====
+const PINNED = ['古典關健', '素關健', '古典晶華', '素晶華', '王者之健'];
+function sortProducts() {
+  products.sort((a, b) => {
+    const pa = PINNED.indexOf(a.name);
+    const pb = PINNED.indexOf(b.name);
+    if (pa !== -1 || pb !== -1) {
+      // 只要其中一個在置頂清單
+      if (pa !== -1 && pb !== -1) {
+        if (pa !== pb) return pa - pb;   // 依置頂清單順序
+      } else {
+        return pa !== -1 ? -1 : 1;       // 置頂的排前面
+      }
+    } else {
+      // 都不置頂：依名稱字母序
+      if (a.name < b.name) return -1;
+      if (a.name > b.name) return  1;
+    }
+    // 同品名：依有效日期升冪，空的排後面
+    const da = a.expiry || '99999999';
+    const db = b.expiry || '99999999';
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+}
 
 function save() {
   localStorage.setItem('stockos_products', JSON.stringify(products));
@@ -1134,6 +1160,7 @@ function addProduct() {
     expiry:      document.getElementById('pExpiry').value.trim(),
     lowAlert: parseInt(document.getElementById('pLow').value) || 10
   });
+  sortProducts();
   save();
   renderProducts();
   document.getElementById('pId').value = '';
@@ -1210,6 +1237,7 @@ function saveEdit() {
     stockPublic: parseFloat(document.getElementById('editStockPublic').value) || 0,
     lowAlert:    parseInt(document.getElementById('editLow').value)              || 10,
   };
+  sortProducts();
   save();
   const al = document.getElementById('editAlert');
   al.textContent = '✓ 已儲存';
@@ -1262,6 +1290,7 @@ function printQR() {
 }
 
 // Init
+sortProducts();
 renderProducts();
 </script>
 </body>
