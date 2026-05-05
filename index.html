@@ -23,7 +23,43 @@
     --text-dim: #5a6a7a;
     --mono: 'Share Tech Mono', monospace;
     --sans: 'Noto Sans TC', sans-serif;
+    --grid-color: rgba(0,229,255,0.03);
   }
+
+  /* ── 淺色模式 ── */
+  body.light {
+    --bg: #f0f4f8;
+    --surface: #ffffff;
+    --surface2: #e8edf3;
+    --border: #c8d4e0;
+    --accent: #0077aa;
+    --accent2: #d45800;
+    --green: #007a40;
+    --red: #cc1133;
+    --yellow: #996600;
+    --text: #1a2535;
+    --text-dim: #6a7e96;
+    --grid-color: rgba(0,120,180,0.04);
+  }
+
+  /* 主題切換按鈕 */
+  .theme-btn {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--surface2);
+    color: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 1px;
+    cursor: pointer;
+    transition: all .2s;
+    user-select: none;
+  }
+  .theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .theme-icon { font-size: 14px; transition: transform .4s; }
+  body.light .theme-icon { transform: rotate(180deg); }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -41,8 +77,8 @@
     position: fixed;
     inset: 0;
     background-image:
-      linear-gradient(rgba(0,229,255,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,229,255,0.03) 1px, transparent 1px);
+      linear-gradient(var(--grid-color) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-color) 1px, transparent 1px);
     background-size: 40px 40px;
     pointer-events: none;
     z-index: 0;
@@ -478,6 +514,10 @@
     </div>
   </div>
   <div class="header-status">
+    <button class="theme-btn" onclick="toggleTheme()" title="切換深色/淺色">
+      <span class="theme-icon">☀</span>
+      <span id="themeLabel">淺色</span>
+    </button>
     <div class="status-dot"></div>
     <span id="headerTime"></span>
   </div>
@@ -554,6 +594,9 @@
     <div class="kpi-grid" id="kpiGrid"></div>
     <div class="card">
       <div class="card-title">庫存清單</div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+        <button class="btn btn-primary btn-sm" onclick="exportInventoryCSV()">⬇ 匯出 CSV</button>
+      </div>
       <div class="search-row">
         <input type="text" id="invSearch" placeholder="搜尋商品名稱或編號..." oninput="renderInventory()">
       </div>
@@ -803,6 +846,58 @@ function sortProducts() {
 function save() {
   localStorage.setItem('stockos_products', JSON.stringify(products));
   localStorage.setItem('stockos_history',  JSON.stringify(history));
+}
+
+
+// ===== 主題切換 =====
+function toggleTheme() {
+  const isLight = document.body.classList.toggle('light');
+  localStorage.setItem('stockos_theme', isLight ? 'light' : 'dark');
+  document.getElementById('themeLabel').textContent = isLight ? '深色' : '淺色';
+}
+// 初始化主題
+(function(){
+  if (localStorage.getItem('stockos_theme') === 'light') {
+    document.body.classList.add('light');
+  }
+})();
+
+// ===== 匯出庫存 CSV =====
+function exportInventoryCSV() {
+  const BOM = '\uFEFF'; // UTF-8 BOM，讓 Excel 正確顯示中文
+  const headers = ['批號', '產品名稱', '規格', '類別', '有效日期', '古典庫存', '大眾庫存', '品名小計', '警示'];
+
+  // 品名小計（古典+大眾）
+  const nameTotal = {};
+  products.forEach(p => {
+    nameTotal[p.name] = (nameTotal[p.name] || 0) + p.stock + (p.stockPublic || 0);
+  });
+
+  const rows = products.map(p => {
+    const expFmt = p.expiry ? p.expiry.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3') : '';
+    const warn   = p.stock === 0 ? '缺貨' : p.stock <= p.lowAlert ? '偏低' : '';
+    return [
+      p.id,
+      p.name,
+      p.spec || '',
+      p.category || '',
+      expFmt,
+      p.stock,
+      p.stockPublic || 0,
+      nameTotal[p.name] || 0,
+      warn
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`).join(',');
+  });
+
+  const csv = BOM + [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'');
+  a.href     = url;
+  a.download = `庫存清單_${date}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ===== HEADER CLOCK =====
@@ -1290,6 +1385,10 @@ function printQR() {
 }
 
 // Init
+if (document.body.classList.contains('light')) {
+  const el = document.getElementById('themeLabel');
+  if (el) el.textContent = '深色';
+}
 sortProducts();
 renderProducts();
 </script>
