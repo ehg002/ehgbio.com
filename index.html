@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>古典藥園-庫存掃碼系統</title>
+<title>庫存掃碼系統</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"></script>
 <style>
@@ -629,7 +629,7 @@
       <div class="table-wrap">
         <table>
           <thead>
-            <tr><th>時間</th><th>商品編號</th><th>商品名稱</th><th>類型</th><th>數量</th><th>備註</th></tr>
+            <tr><th>時間</th><th>商品編號</th><th>商品名稱</th><th>類型</th><th>數量</th><th>備註</th><th></th></tr>
           </thead>
           <tbody id="histBody"></tbody>
         </table>
@@ -768,58 +768,14 @@ let facingMode = 'environment';
 let lastScanned = '';
 let lastScannedTime = 0;
 
-// ===== SEED DATA =====
-const SEED_VERSION = '20260504-v2';
-if (products.length === 0 || localStorage.getItem('stockos_seed_ver') !== SEED_VERSION) {
-  products = [
-    { id:'FSA251220',  name:'古典關健',           spec:'540錠',    category:'關節保健', stock:51,  stockPublic:94,  expiry:'20290101', lowAlert:20 },
-    { id:'FSA260112',  name:'古典關健',           spec:'540錠',    category:'關節保健', stock:133, stockPublic:0,   expiry:'20290202', lowAlert:20 },
-    { id:'FSA260401',  name:'古典關健',           spec:'540錠',    category:'關節保健', stock:127, stockPublic:0,   expiry:'20290409', lowAlert:20 },
-    { id:'FSA260402',  name:'古典關健',           spec:'540錠',    category:'關節保健', stock:134, stockPublic:0,   expiry:'20290414', lowAlert:20 },
-    { id:'FSA250906',  name:'素關健',             spec:'270錠',    category:'關節保健', stock:32,  stockPublic:58,  expiry:'20280925', lowAlert:15 },
-    { id:'FSA251105',  name:'古典晶華',           spec:'450錠',    category:'眼睛保健', stock:49,  stockPublic:96,  expiry:'20281113', lowAlert:20 },
-    { id:'FSA251106',  name:'古典晶華',           spec:'450錠',    category:'眼睛保健', stock:142, stockPublic:0,   expiry:'20281119', lowAlert:20 },
-    { id:'FSA250324',  name:'素晶華',             spec:'450錠',    category:'美容保健', stock:8,   stockPublic:44,  expiry:'20280330', lowAlert:15 },
-    { id:'FSA251219',  name:'王者之健',           spec:'450錠',    category:'男性保健', stock:116, stockPublic:98,  expiry:'20281225', lowAlert:20 },
-    { id:'FSA260302',  name:'王者之健',           spec:'450錠',    category:'男性保健', stock:124, stockPublic:0,   expiry:'20290326', lowAlert:20 },
-    { id:'FSA251218',  name:'貴妃珍寶',           spec:'450錠',    category:'美容保健', stock:136, stockPublic:59,  expiry:'20281217', lowAlert:20 },
-    { id:'FSA250909',  name:'貴妃珍寶',           spec:'450錠',    category:'美容保健', stock:34,  stockPublic:115, expiry:'20280930', lowAlert:20 },
-    { id:'FSA251011',  name:'貴妃珍寶',           spec:'450錠',    category:'美容保健', stock:149, stockPublic:0,   expiry:'20281022', lowAlert:20 },
-    { id:'FSS250905',  name:'頂級珍珠粉',         spec:'60入',     category:'美容保健', stock:47,  stockPublic:29,  expiry:'20280422', lowAlert:10 },
-    { id:'FSG251217',  name:'經舒熱飲',           spec:'9入',      category:'女性保健', stock:288, stockPublic:156, expiry:'20281222', lowAlert:30 },
-    { id:'FSA241201',  name:'無敏樂',             spec:'225錠',    category:'過敏保健', stock:11,  stockPublic:34,  expiry:'20271202', lowAlert:15 },
-    { id:'FSA260111',  name:'無敏樂',             spec:'225錠',    category:'過敏保健', stock:242, stockPublic:0,   expiry:'20290128', lowAlert:15 },
-    { id:'FSA250714',  name:'優視學',             spec:'240錠',    category:'眼睛保健', stock:52,  stockPublic:149, expiry:'20280113', lowAlert:15 },
-    { id:'FSG250809',  name:'小強身',             spec:'1G',       category:'兒童保健', stock:37,  stockPublic:50,  expiry:'20281012', lowAlert:10 },
-    { id:'FSG250609',  name:'小強身',             spec:'2G',       category:'兒童保健', stock:29,  stockPublic:38,  expiry:'20281012', lowAlert:10 },
-    { id:'FSG240413',  name:'小強身',             spec:'3G',       category:'兒童保健', stock:29,  stockPublic:15,  expiry:'20270507', lowAlert:10 },
-    { id:'FSA230909',  name:'成長精華-男青春前期', spec:'135錠',   category:'成長保健', stock:32,  stockPublic:49,  expiry:'20261001', lowAlert:10 },
-    { id:'FSA241103',  name:'成長精華-男青春期',   spec:'135錠',   category:'成長保健', stock:0,   stockPublic:59,  expiry:'20271104', lowAlert:10 },
-    { id:'FSA241107',  name:'成長精華-女青春前期', spec:'135錠',   category:'成長保健', stock:59,  stockPublic:60,  expiry:'20271110', lowAlert:10 },
-    { id:'FSA250318',  name:'成長精華-女青春期',   spec:'135錠',   category:'成長保健', stock:88,  stockPublic:98,  expiry:'20280319', lowAlert:10 },
-    { id:'FSA260201',  name:'黑法寶',             spec:'225錠',    category:'男性保健', stock:252, stockPublic:79,  expiry:'20290203', lowAlert:20 },
-    { id:'FSS251216A', name:'杏仁粉',             spec:'500g',     category:'食品',     stock:32,  stockPublic:79,  expiry:'20270118', lowAlert:10 },
-    { id:'FSS251216B', name:'杏仁粉',             spec:'400g',     category:'食品',     stock:0,   stockPublic:30,  expiry:'20270118', lowAlert:10 },
-    { id:'FSS250326',  name:'醫用珍珠粉',         spec:'200g',     category:'醫師專案', stock:12,  stockPublic:0,   expiry:'20280422', lowAlert:10 },
-    { id:'FSS250907',  name:'醫用珍珠粉',         spec:'200g',     category:'醫師專案', stock:22,  stockPublic:0,   expiry:'20280422', lowAlert:10 },
-    { id:'FSA250312A', name:'黑瑪卡錠',           spec:'120錠/瓶', category:'男性保健', stock:10,  stockPublic:0,   expiry:'20280331', lowAlert:5  },
-    { id:'FSA250312B', name:'黑瑪卡錠',           spec:'200g/袋',  category:'男性保健', stock:2.5, stockPublic:0,   expiry:'20280331', lowAlert:5  },
-    { id:'FSG250311',  name:'黑瑪卡粉',           spec:'200g/袋',  category:'男性保健', stock:45,  stockPublic:0,   expiry:'20270326', lowAlert:10 },
-    { id:'GDJ-BATCH01',name:'古典晶華(總)',        spec:'450錠',    category:'眼睛保健', stock:287, stockPublic:0,   expiry:'',         lowAlert:20 },
-    { id:'WZJ-BATCH01',name:'王者之健(總)',        spec:'450錠',    category:'男性保健', stock:338, stockPublic:0,   expiry:'',         lowAlert:20 },
-    { id:'ZZM-BATCH01',name:'珍珠元氣美人錠',      spec:'450錠',    category:'美容保健', stock:298, stockPublic:0,   expiry:'',         lowAlert:20 },
-    { id:'WMO-BATCH01',name:'無敏樂(總)',          spec:'225錠',    category:'過敏保健', stock:287, stockPublic:0,   expiry:'',         lowAlert:20 },
-    { id:'YYZ-BATCH01',name:'醫用珍珠粉(總)',      spec:'200g',     category:'醫師專案', stock:34,  stockPublic:0,   expiry:'',         lowAlert:10 },
-  ];
-  history = [];
-  sortProducts();
-  localStorage.setItem('stockos_seed_ver', SEED_VERSION);
-  save();
-}
-
-
 // ===== 排序：置頂品名 → 其餘品名字母序 → 同名依有效日期升冪 =====
-const PINNED = ['古典關健', '素關健', '古典晶華', '素晶華', '王者之健'];
+const PINNED = [
+  '古典關健', '素關健', '古典晶華', '素晶華', '王者之健',
+  '貴妃珍寶', '珍珠元氣美人錠', '頂級珍珠粉', '經舒熱飲',
+  '無敏樂', '優視學', '小強身',
+  '成長精華-男青春前期', '成長精華-男青春期', '成長精華-女青春前期', '成長精華-女青春期',
+  '黑法寶', '杏仁粉', '醫用珍珠粉', '黑瑪卡錠', '黑瑪卡粉'
+];
 function sortProducts() {
   products.sort((a, b) => {
     const pa = PINNED.indexOf(a.name);
@@ -836,12 +792,61 @@ function sortProducts() {
       if (a.name < b.name) return -1;
       if (a.name > b.name) return  1;
     }
-    // 同品名：依有效日期升冪，空的排後面
-    const da = a.expiry || '99999999';
-    const db = b.expiry || '99999999';
-    return da < db ? -1 : da > db ? 1 : 0;
+    // 同品名：規格若含 G 數字則依數字升冪，否則依 id 字典序
+    const gA = (a.spec||'').match(/^(\d+)G$/i);
+    const gB = (b.spec||'').match(/^(\d+)G$/i);
+    if (gA && gB) return parseInt(gA[1]) - parseInt(gB[1]);
+    if (a.id < b.id) return -1;
+    if (a.id > b.id) return  1;
+    return 0;
   });
 }
+
+// ===== SEED DATA =====
+const SEED_VERSION = '20260504-v4';
+if (products.length === 0 || localStorage.getItem('stockos_seed_ver') !== SEED_VERSION) {
+  products = [
+    { id:'FSA251220',  name:'古典關健',            spec:'540錠',    category:'關節保健', stock:51,   stockPublic:94,  expiry:'20290101', lowAlert:20 },
+    { id:'FSA260112',  name:'古典關健',            spec:'540錠',    category:'關節保健', stock:133,  stockPublic:0,   expiry:'20290202', lowAlert:20 },
+    { id:'FSA260401',  name:'古典關健',            spec:'540錠',    category:'關節保健', stock:127,  stockPublic:0,   expiry:'20290409', lowAlert:20 },
+    { id:'FSA260402',  name:'古典關健',            spec:'540錠',    category:'關節保健', stock:134,  stockPublic:0,   expiry:'20290414', lowAlert:20 },
+    { id:'FSA250906',  name:'素關健',              spec:'270錠',    category:'關節保健', stock:32,   stockPublic:58,  expiry:'20280925', lowAlert:15 },
+    { id:'FSA251105',  name:'古典晶華',            spec:'450錠',    category:'眼睛保健', stock:49,   stockPublic:96,  expiry:'20281113', lowAlert:20 },
+    { id:'FSA251106',  name:'古典晶華',            spec:'450錠',    category:'眼睛保健', stock:142,  stockPublic:0,   expiry:'20281119', lowAlert:20 },
+    { id:'FSA250324',  name:'素晶華',              spec:'450錠',    category:'美容保健', stock:8,    stockPublic:44,  expiry:'20280330', lowAlert:15 },
+    { id:'FSA251219',  name:'王者之健',            spec:'450錠',    category:'男性保健', stock:116,  stockPublic:98,  expiry:'20281225', lowAlert:20 },
+    { id:'FSA260302',  name:'王者之健',            spec:'450錠',    category:'男性保健', stock:124,  stockPublic:0,   expiry:'20290326', lowAlert:20 },
+    { id:'FSA251218',  name:'貴妃珍寶',            spec:'450錠',    category:'美容保健', stock:136,  stockPublic:59,  expiry:'20281217', lowAlert:20 },
+    { id:'FSA250909',  name:'珍珠元氣美人錠',      spec:'450錠',    category:'美容保健', stock:34,   stockPublic:115, expiry:'20280930', lowAlert:20 },
+    { id:'FSA251011',  name:'珍珠元氣美人錠',      spec:'450錠',    category:'美容保健', stock:149,  stockPublic:0,   expiry:'20281022', lowAlert:20 },
+    { id:'FSS250905',  name:'頂級珍珠粉',          spec:'60入',     category:'美容保健', stock:47,   stockPublic:29,  expiry:'20280422', lowAlert:10 },
+    { id:'FSG251217',  name:'經舒熱飲',            spec:'9入',      category:'女性保健', stock:288,  stockPublic:156, expiry:'20281222', lowAlert:30 },
+    { id:'FSA241201',  name:'無敏樂',              spec:'225錠',    category:'過敏保健', stock:11,   stockPublic:34,  expiry:'20271202', lowAlert:15 },
+    { id:'FSA260111',  name:'無敏樂',              spec:'225錠',    category:'過敏保健', stock:242,  stockPublic:0,   expiry:'20290128', lowAlert:15 },
+    { id:'FSA250714',  name:'優視學',              spec:'240錠',    category:'眼睛保健', stock:52,   stockPublic:149, expiry:'20280113', lowAlert:15 },
+    { id:'FSG250809',  name:'小強身',              spec:'1G',       category:'兒童保健', stock:37,   stockPublic:50,  expiry:'20281012', lowAlert:10 },
+    { id:'FSG250609',  name:'小強身',              spec:'2G',       category:'兒童保健', stock:29,   stockPublic:38,  expiry:'20281012', lowAlert:10 },
+    { id:'FSG240413',  name:'小強身',              spec:'3G',       category:'兒童保健', stock:29,   stockPublic:15,  expiry:'20270507', lowAlert:10 },
+    { id:'FSA230909',  name:'成長精華-男青春前期', spec:'135錠',    category:'成長保健', stock:32,   stockPublic:49,  expiry:'20261001', lowAlert:10 },
+    { id:'FSA241103',  name:'成長精華-男青春期',   spec:'135錠',    category:'成長保健', stock:10,   stockPublic:49,  expiry:'20271104', lowAlert:10 },
+    { id:'FSA241107',  name:'成長精華-女青春前期', spec:'135錠',    category:'成長保健', stock:59,   stockPublic:60,  expiry:'20271110', lowAlert:10 },
+    { id:'FSA250318',  name:'成長精華-女青春期',   spec:'135錠',    category:'成長保健', stock:88,   stockPublic:98,  expiry:'20280319', lowAlert:10 },
+    { id:'FSA260201',  name:'黑法寶',              spec:'225錠',    category:'男性保健', stock:252,  stockPublic:79,  expiry:'20290203', lowAlert:20 },
+    { id:'FSS251216B', name:'杏仁粉',              spec:'500g',     category:'食品',     stock:32,   stockPublic:79,  expiry:'20270118', lowAlert:10 },
+    { id:'FSS251216A', name:'杏仁粉',              spec:'400g',     category:'食品',     stock:0,    stockPublic:30,  expiry:'20270118', lowAlert:10 },
+    { id:'FSS250326',  name:'醫用珍珠粉',          spec:'200g',     category:'醫師專案', stock:12,   stockPublic:0,   expiry:'20280422', lowAlert:10 },
+    { id:'FSS250907',  name:'醫用珍珠粉',          spec:'200g',     category:'醫師專案', stock:22,   stockPublic:0,   expiry:'20280422', lowAlert:10 },
+    { id:'FSA250312A', name:'黑瑪卡錠',            spec:'120錠/瓶', category:'男性保健', stock:10,   stockPublic:0,   expiry:'20280331', lowAlert:5  },
+    { id:'FSA250312B', name:'黑瑪卡錠',            spec:'200g/袋',  category:'男性保健', stock:2.5,  stockPublic:0,   expiry:'20280331', lowAlert:5  },
+    { id:'FSG250311',  name:'黑瑪卡粉',            spec:'200g/袋',  category:'男性保健', stock:45,   stockPublic:0,   expiry:'20270326', lowAlert:10 },
+  ];
+  history = [];
+  sortProducts();
+  localStorage.setItem('stockos_seed_ver', SEED_VERSION);
+  save();
+}
+
+
 
 function save() {
   localStorage.setItem('stockos_products', JSON.stringify(products));
@@ -1115,6 +1120,7 @@ function confirmAction() {
   const now = new Date();
   const ts = now.toLocaleString('zh-TW', { hour12: false }).replace(',','');
   history.unshift({
+    hid: Date.now() + Math.random().toString(36).slice(2,6),
     time: ts,
     productId: prod.id,
     productName: prod.name,
@@ -1227,15 +1233,32 @@ function renderHistory() {
     (!t || h.type === t)
   );
   const body = document.getElementById('histBody');
-  if (!rows.length) { body.innerHTML = '<tr><td colspan="6"><div class="empty">無紀錄</div></td></tr>'; return; }
-  body.innerHTML = rows.map(h => `<tr>
+  if (!rows.length) { body.innerHTML = '<tr><td colspan="7"><div class="empty">無紀錄</div></td></tr>'; return; }
+  body.innerHTML = rows.map((h, i) => {
+    const hid = h.hid || i; // 舊資料無 hid 用 index 當 key
+    return `<tr>
     <td style="font-family:var(--mono);font-size:11px;color:var(--text-dim)">${h.time}</td>
     <td style="font-family:var(--mono);font-size:12px;color:var(--accent)">${h.productId}</td>
     <td>${h.productName}</td>
     <td><span class="badge badge-${h.type}">${h.type==='in'?'▲ 入庫':'▼ 出庫'}</span></td>
     <td style="font-family:var(--mono)">${h.qty}</td>
     <td style="color:var(--text-dim)">${h.note||'─'}</td>
-  </tr>`).join('');
+    <td><button class="btn btn-red btn-sm" onclick="deleteHistory('${hid}',${i})" title="移除此筆">✕</button></td>
+  </tr>`;
+  }).join('');
+}
+
+function deleteHistory(hid, idx) {
+  if (!confirm('確定移除此筆紀錄？')) return;
+  // 優先用 hid 找，找不到就用 index
+  const byHid = history.findIndex(h => h.hid === hid);
+  if (byHid !== -1) {
+    history.splice(byHid, 1);
+  } else {
+    history.splice(idx, 1);
+  }
+  save();
+  renderHistory();
 }
 
 // ===== PRODUCTS =====
