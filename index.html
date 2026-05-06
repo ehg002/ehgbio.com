@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>庫存掃碼系統</title>
+<title>古典藥園-成品庫存掃碼系統</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://unpkg.com/@zxing/library@0.18.6/umd/index.min.js"></script>
 <style>
@@ -861,15 +861,15 @@ function sortProducts() {
 }
 
 // ===== SEED DATA =====
-const SEED_VERSION = '20260504-v4';
+const SEED_VERSION = '20260504-v5';
 if (products.length === 0 || localStorage.getItem('stockos_seed_ver') !== SEED_VERSION) {
   products = [
-    { id:'FSA251220',  name:'古典關健',            spec:'540錠',    category:'關節保健', stock:51,   stockPublic:94,  expiry:'20290101', lowAlert:20 },
+    { id:'FSA251220',  name:'古典關健',            spec:'540錠',    category:'關節保健', stock:47,   stockPublic:94,  expiry:'20290101', lowAlert:20 },
     { id:'FSA260112',  name:'古典關健',            spec:'540錠',    category:'關節保健', stock:133,  stockPublic:0,   expiry:'20290202', lowAlert:20 },
     { id:'FSA260401',  name:'古典關健',            spec:'540錠',    category:'關節保健', stock:127,  stockPublic:0,   expiry:'20290409', lowAlert:20 },
     { id:'FSA260402',  name:'古典關健',            spec:'540錠',    category:'關節保健', stock:134,  stockPublic:0,   expiry:'20290414', lowAlert:20 },
     { id:'FSA250906',  name:'素關健',              spec:'270錠',    category:'關節保健', stock:32,   stockPublic:58,  expiry:'20280925', lowAlert:15 },
-    { id:'FSA251105',  name:'古典晶華',            spec:'450錠',    category:'眼睛保健', stock:49,   stockPublic:96,  expiry:'20281113', lowAlert:20 },
+    { id:'FSA251105',  name:'古典晶華',            spec:'450錠',    category:'眼睛保健', stock:45,   stockPublic:96,  expiry:'20281113', lowAlert:20 },
     { id:'FSA251106',  name:'古典晶華',            spec:'450錠',    category:'眼睛保健', stock:142,  stockPublic:0,   expiry:'20281119', lowAlert:20 },
     { id:'FSA250324',  name:'素晶華',              spec:'450錠',    category:'美容保健', stock:8,    stockPublic:44,  expiry:'20280330', lowAlert:15 },
     { id:'FSA251219',  name:'王者之健',            spec:'450錠',    category:'男性保健', stock:116,  stockPublic:98,  expiry:'20281225', lowAlert:20 },
@@ -898,7 +898,11 @@ if (products.length === 0 || localStorage.getItem('stockos_seed_ver') !== SEED_V
     { id:'FSA250312B', name:'黑瑪卡錠',            spec:'200g/袋',  category:'男性保健', stock:2.5,  stockPublic:0,   expiry:'20280331', lowAlert:5  },
     { id:'FSG250311',  name:'黑瑪卡粉',            spec:'200g/袋',  category:'男性保健', stock:45,   stockPublic:0,   expiry:'20270326', lowAlert:10 },
   ];
-  history = [];
+  history = [
+    { hid:'hist20260506111132', time:'2026/5/6 11:11:32', productId:'FSA251105', productName:'古典晶華',       type:'out', qty:4,  note:'' },
+    { hid:'hist20260506111112', time:'2026/5/6 11:11:12', productId:'FSA251220', productName:'古典關健',       type:'out', qty:4,  note:'' },
+    { hid:'hist20260506110840', time:'2026/5/6 11:08:40', productId:'FSA241103', productName:'成長精華-男青春期', type:'in',  qty:10, note:'' },
+  ];
   sortProducts();
   localStorage.setItem('stockos_seed_ver', SEED_VERSION);
   save();
