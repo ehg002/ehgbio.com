@@ -605,7 +605,7 @@
           <thead>
             <tr>
               <th>批號（QR）</th><th>產品名稱</th><th>規格</th><th>類別</th>
-              <th>有效日期</th><th>古典庫存</th><th>大眾庫存</th><th>品名小計</th><th>警示</th>
+              <th>有效日期</th><th>古典庫存</th><th>大眾庫存</th><th>總庫存量</th><th>警示</th>
             </tr>
           </thead>
           <tbody id="invBody"></tbody>
@@ -865,9 +865,9 @@ function toggleTheme() {
 // ===== 匯出庫存 CSV =====
 function exportInventoryCSV() {
   const BOM = '\uFEFF'; // UTF-8 BOM，讓 Excel 正確顯示中文
-  const headers = ['批號', '產品名稱', '規格', '類別', '有效日期', '古典庫存', '大眾庫存', '品名小計', '警示'];
+  const headers = ['批號', '產品名稱', '規格', '類別', '有效日期', '古典庫存', '大眾庫存', '總庫存量', '警示'];
 
-  // 品名小計（古典+大眾）
+  // 總庫存量（古典+大眾）
   const nameTotal = {};
   products.forEach(p => {
     nameTotal[p.name] = (nameTotal[p.name] || 0) + p.stock + (p.stockPublic || 0);
@@ -1176,7 +1176,7 @@ function renderInventory() {
   const body = document.getElementById('invBody');
   if (!rows.length) { body.innerHTML = '<tr><td colspan="9"><div class="empty">無符合商品</div></td></tr>'; return; }
 
-  // 品名小計 = 古典 + 大眾
+  // 總庫存量 = 古典 + 大眾
   const nameTotal = {};
   products.forEach(p => {
     nameTotal[p.name] = (nameTotal[p.name] || 0) + p.stock + (p.stockPublic || 0);
