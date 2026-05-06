@@ -1,4 +1,3 @@
-const API_URL = 'https://script.google.com/macros/s/AKfycbwsGi8ItTfiZU2zBDeeOj2FyYOgGnGd-Wp37TS0mJP--rG7DuZ0M-C1ropcznkB8Y5OXg/exec';
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -497,6 +496,34 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwsGi8ItTfiZU2zBDeeOj2F
   }
   .manual-input.show { display: flex; gap: 8px; }
 
+  /* API 載入遮罩 */
+  #loadingOverlay {
+    display: none;
+    position: fixed; inset: 0; z-index: 999;
+    background: rgba(0,0,0,.65);
+    align-items: center; justify-content: center;
+    flex-direction: column; gap: 16px;
+  }
+  .loading-spinner {
+    width: 40px; height: 40px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-family: var(--mono); font-size: 12px; color: var(--accent); letter-spacing: 2px; }
+
+  /* API 連線狀態指示 */
+  .api-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    font-family: var(--mono); font-size: 10px; letter-spacing: 1px;
+    padding: 3px 8px; border-radius: 10px; margin-left: 8px;
+  }
+  .api-badge.online  { background: rgba(0,255,136,.12); color: var(--green); border: 1px solid var(--green); }
+  .api-badge.offline { background: rgba(255,51,85,.12);  color: var(--red);   border: 1px solid var(--red); }
+  .api-badge.local   { background: rgba(255,215,0,.12);  color: var(--yellow);border: 1px solid var(--yellow); }
+
   /* Responsive */
   @media (max-width: 600px) {
     main { padding: 12px; }
@@ -506,12 +533,17 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwsGi8ItTfiZU2zBDeeOj2F
 </head>
 <body>
 
+<div id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">同步資料中...</div>
+</div>
+
 <header>
   <div class="logo">
     <div class="logo-icon">QR</div>
     <div>
       <div class="logo-text">STOCK·OS</div>
-      <div class="logo-sub">庫存掃碼管理系統 · DEMO</div>
+      <div class="logo-sub">庫存掃碼管理系統 · DEMO<span id="apiBadge" class="api-badge local">⬡ 本機</span></div>
     </div>
   </div>
   <div class="header-status">
@@ -759,8 +791,33 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbwsGi8ItTfiZU2zBDeeOj2F
 
 <script>
 // ===== STATE =====
+// ===== API 設定 =====
+// ★ 部署 Google Apps Script 後，將 URL 貼到這裡 ★
+const API_URL = 'https://script.google.com/macros/s/AKfycbwsGi8ItTfiZU2zBDeeOj2FyYOgGnGd-Wp37TS0mJP--rG7DuZ0M-C1ropcznkB8Y5OXg/exec';
+const USE_API = API_URL !== '';  // 有填 URL 才啟用 API，否則用 localStorage
+
 let products = JSON.parse(localStorage.getItem('stockos_products') || '[]');
 let history  = JSON.parse(localStorage.getItem('stockos_history')  || '[]');
+let _apiLoading = false;
+
+// API 輔助函數
+async function apiGet(action) {
+  const res = await fetch(`${API_URL}?action=${action}`);
+  return res.json();
+}
+async function apiPost(body) {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(body)
+  });
+  return res.json();
+}
+
+// 顯示/隱藏載入中遮罩
+function setLoading(on) {
+  _apiLoading = on;
+  document.getElementById('loadingOverlay').style.display = on ? 'flex' : 'none';
+}
 let scanMode = 'in';
 let currentProduct = null;
 let stream = null;
@@ -850,8 +907,21 @@ if (products.length === 0 || localStorage.getItem('stockos_seed_ver') !== SEED_V
 
 
 function save() {
+  // 永遠寫 localStorage 當快取
   localStorage.setItem('stockos_products', JSON.stringify(products));
   localStorage.setItem('stockos_history',  JSON.stringify(history));
+  // 若有設定 API，背景同步到 Google Sheet
+  if (USE_API) {
+    apiPost({ action: 'saveProducts', data: products }).catch(console.error);
+  }
+}
+
+// 新增單筆紀錄到 Google Sheet（不等待，背景執行）
+function saveHistoryRecord(rec) {
+  localStorage.setItem('stockos_history', JSON.stringify(history));
+  if (USE_API) {
+    apiPost({ action: 'addHistory', data: rec }).catch(console.error);
+  }
 }
 
 
@@ -1120,7 +1190,7 @@ function confirmAction() {
 
   const now = new Date();
   const ts = now.toLocaleString('zh-TW', { hour12: false }).replace(',','');
-  history.unshift({
+  const rec = {
     hid: Date.now() + Math.random().toString(36).slice(2,6),
     time: ts,
     productId: prod.id,
@@ -1128,9 +1198,10 @@ function confirmAction() {
     type: scanMode,
     qty: qty,
     note: ''
-  });
-
-  save();
+  };
+  history.unshift(rec);
+  save();            // 儲存商品庫存（含 API 同步）
+  saveHistoryRecord(rec);  // 單筆新增紀錄
   showAlert((scanMode === 'in' ? '✓ 入庫' : '✓ 出庫') + ' ' + prod.name + ' × ' + qty, 'success');
   document.getElementById('resultStock').textContent = prod.stock;
   currentProduct = prod;
@@ -1258,7 +1329,8 @@ function deleteHistory(hid, idx) {
   } else {
     history.splice(idx, 1);
   }
-  save();
+  localStorage.setItem('stockos_history', JSON.stringify(history));
+  if (USE_API) apiPost({ action: 'delHistory', hid: hid }).catch(console.error);
   renderHistory();
 }
 
@@ -1413,8 +1485,41 @@ if (document.body.classList.contains('light')) {
   const el = document.getElementById('themeLabel');
   if (el) el.textContent = '深色';
 }
-sortProducts();
-renderProducts();
+
+async function initApp() {
+  if (USE_API) {
+    setLoading(true);
+    try {
+      const [prods, hist] = await Promise.all([
+        apiGet('getProducts'),
+        apiGet('getHistory')
+      ]);
+      if (Array.isArray(prods) && prods.length > 0) {
+        products = prods;
+        localStorage.setItem('stockos_products', JSON.stringify(products));
+      }
+      if (Array.isArray(hist)) {
+        history = hist;
+        localStorage.setItem('stockos_history', JSON.stringify(history));
+      }
+      document.getElementById('apiBadge').textContent = '● Google Sheet';
+      document.getElementById('apiBadge').className = 'api-badge online';
+    } catch(e) {
+      console.warn('API 連線失敗，使用本機快取', e);
+      document.getElementById('apiBadge').textContent = '⚠ 離線快取';
+      document.getElementById('apiBadge').className = 'api-badge offline';
+    } finally {
+      setLoading(false);
+    }
+  } else {
+    document.getElementById('apiBadge').textContent = '⬡ 本機';
+    document.getElementById('apiBadge').className = 'api-badge local';
+  }
+  sortProducts();
+  renderProducts();
+}
+
+initApp();
 </script>
 </body>
 </html>
